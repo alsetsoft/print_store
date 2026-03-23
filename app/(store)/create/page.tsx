@@ -18,11 +18,12 @@ function decodeLabel(raw: string): { url: string; label: string } {
 export default async function ConstructorPage() {
   const supabase = await createClient()
 
-  // Default base: "футболка" id=16
+  // Default base: first available
   const { data: baseRow } = await supabase
     .from("bases")
     .select("id, name, price, image_url")
-    .eq("id", 16)
+    .order("id")
+    .limit(1)
     .single()
 
   if (!baseRow) {
