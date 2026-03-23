@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Package, Check } from "lucide-react"
+import { Package, Check, ShoppingCart } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useCart } from "@/lib/cart-context"
 
 type BaseImage = {
   id: number
@@ -44,12 +45,27 @@ export function BaseDetailClient({
   const [selectedColorId, setSelectedColorId] = useState<number>(colorOptions[0]?.id ?? 0)
   const [selectedSizeId, setSelectedSizeId] = useState<number | null>(sizes[0]?.id ?? null)
 
+  const { addItem } = useCart()
+
   const selectedColor = colorOptions.find((c) => c.id === selectedColorId) ?? colorOptions[0]
   const images = selectedColor?.images ?? []
 
   // Determine price: size-specific price > base price
   const selectedSize = sizes.find((s) => s.id === selectedSizeId)
-  const displayPrice = selectedSize?.price ?? base.price
+  const displayPrice = (selectedSize?.price && selectedSize.price > 0) ? selectedSize.price : base.price
+
+  const handleAddToCart = () => {
+    const firstImage = images[0]
+    addItem({
+      id: String(base.id),
+      type: "base",
+      name: base.name,
+      price: displayPrice,
+      imageUrl: firstImage?.url ?? null,
+      colorName: selectedColor?.name ?? undefined,
+      sizeName: selectedSize?.name ?? undefined,
+    })
+  }
 
   return (
     <div className="flex flex-col gap-8 lg:flex-row">
@@ -128,6 +144,15 @@ export function BaseDetailClient({
             </div>
           </div>
         )}
+
+        {/* Add to cart */}
+        <button
+          onClick={handleAddToCart}
+          className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <ShoppingCart className="size-4" />
+          {"\u0414\u043e\u0434\u0430\u0442\u0438 \u0434\u043e \u043a\u043e\u0448\u0438\u043a\u0430"}
+        </button>
       </div>
     </div>
   )
