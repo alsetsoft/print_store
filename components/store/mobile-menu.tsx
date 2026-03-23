@@ -1,0 +1,123 @@
+"use client"
+
+import Link from "next/link"
+import { Paintbrush, Shirt, Search, Pencil, Menu } from "lucide-react"
+import { UA } from "@/lib/translations"
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "@/components/ui/sheet"
+
+interface Category {
+  id: number
+  name: string
+}
+
+interface Subcategory {
+  id: number
+  name: string
+  base_category_id: number
+}
+
+interface Group {
+  id: number
+  name: string
+  base_subcategory_id: number | null
+}
+
+interface PrintCategory {
+  id: number
+  name: string
+}
+
+interface PrintSubcategory {
+  id: number
+  name: string
+  print_category_id: number
+}
+
+interface MobileMenuProps {
+  categories: Category[]
+  subcategories: Subcategory[]
+  groups: Group[]
+  printCategories: PrintCategory[]
+  printSubcategories: PrintSubcategory[]
+}
+
+export function MobileMenu({ categories, subcategories, groups, printCategories, printSubcategories }: MobileMenuProps) {
+  return (
+    <Sheet>
+      <SheetTrigger asChild>
+        <button className="flex size-9 items-center justify-center rounded-md border md:hidden">
+          <Menu className="size-5" />
+        </button>
+      </SheetTrigger>
+      <SheetContent side="left" className="overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Shirt className="size-4" />
+            </div>
+            {"\u041f\u0440\u0438\u043d\u0442\u041c\u0430\u0440\u043a\u0435\u0442"}
+          </SheetTitle>
+        </SheetHeader>
+
+        <div className="px-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder={UA.store.search}
+              className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        <nav className="flex flex-col gap-1 px-4">
+          <SheetClose asChild>
+            <Link
+              href="/catalog"
+              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+            >
+              {UA.store.catalog}
+            </Link>
+          </SheetClose>
+
+          <SheetClose asChild>
+            <Link
+              href="/prints"
+              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+            >
+              <Paintbrush className="size-4" />
+              {UA.store.prints}
+            </Link>
+          </SheetClose>
+
+          <SheetClose asChild>
+            <Link
+              href="/bases"
+              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+            >
+              <Shirt className="size-4" />
+              {UA.store.bases}
+            </Link>
+          </SheetClose>
+
+          <SheetClose asChild>
+            <Link
+              href="/create"
+              className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+            >
+              <Pencil className="size-4" />
+              {"\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440"}
+            </Link>
+          </SheetClose>
+        </nav>
+      </SheetContent>
+    </Sheet>
+  )
+}
