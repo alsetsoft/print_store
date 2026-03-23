@@ -57,6 +57,10 @@ All UI strings use Ukrainian via `lib/translations.ts` (`UA` object). Strings ar
 
 `@/*` maps to the project root (e.g., `@/components/ui/button`, `@/lib/utils`).
 
+## Workflow Rules
+
+- **Never commit changes automatically.** Always wait for the user to explicitly request a commit.
+
 ## Environment Variables
 
 Required:
