@@ -137,8 +137,19 @@ export function CompositeCard({
           const px = placement.x / 100
           const py = placement.y / 100
           const ps = placement.scale / 100
-          const pw = zw * ps
-          const ph = zh * ps
+          // Fit print inside zone preserving aspect ratio, then apply scale
+          const printRatio = printImg.naturalWidth / printImg.naturalHeight
+          const zoneRatio = zw / zh
+          let basePw: number, basePh: number
+          if (printRatio > zoneRatio) {
+            basePw = zw
+            basePh = zw / printRatio
+          } else {
+            basePh = zh
+            basePw = zh * printRatio
+          }
+          const pw = basePw * ps
+          const ph = basePh * ps
           const finalX = zx + px * zw - pw / 2
           const finalY = zy + py * zh - ph / 2
 
@@ -156,8 +167,19 @@ export function CompositeCard({
           const px = parsedPrintConfig.x / 100
           const py = parsedPrintConfig.y / 100
           const ps = parsedPrintConfig.scale / 100
-          const pw = zw * ps
-          const ph = zh * ps
+          // Fit print inside zone preserving aspect ratio, then apply scale
+          const printRatio = printImg.naturalWidth / printImg.naturalHeight
+          const zoneRatio = zw / zh
+          let basePw: number, basePh: number
+          if (printRatio > zoneRatio) {
+            basePw = zw
+            basePh = zw / printRatio
+          } else {
+            basePh = zh
+            basePw = zh * printRatio
+          }
+          const pw = basePw * ps
+          const ph = basePh * ps
           const finalX = zx + px * zw - pw / 2
           const finalY = zy + py * zh - ph / 2
 
