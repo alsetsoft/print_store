@@ -193,6 +193,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [resizeStartScale, setResizeStartScale] = useState(50)
   const rafRef = useRef<number | null>(null)
   const pendingPosRef = useRef<{ x: number; y: number } | null>(null)
+  const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
 
   // Right panel form state
   const [textInput, setTextInput] = useState("")
@@ -232,6 +233,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     const up = () => {
       setIsDragging(false)
       setIsResizing(null)
+      setSnappedAxis({ x: false, y: false })
       const pos = pendingPosRef.current
       const elId = selectedElementIdRef.current
       if (pos && elId) {
@@ -394,6 +396,8 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   // Constrain position within 0-100
   // -------------------------------------------------------------------------
 
+  const SNAP_THRESHOLD = 3 // % distance to snap to center
+
   const constrainPos = useCallback((x: number, y: number) => ({
     x: Math.max(0, Math.min(100, x)),
     y: Math.max(0, Math.min(100, y)),
@@ -437,6 +441,11 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     const mx = e.clientX - cr.left - zl
     const my = e.clientY - cr.top - zt
     const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100)
+    const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
+    const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
+    if (snapX) newPos.x = 50
+    if (snapY) newPos.y = 50
+    setSnappedAxis({ x: snapX, y: snapY })
     pendingPosRef.current = newPos
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -457,6 +466,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const handleMouseUp = () => {
     setIsDragging(false)
     setIsResizing(null)
+    setSnappedAxis({ x: false, y: false })
     const pos = pendingPosRef.current
     const elId = selectedElementIdRef.current
     if (pos && elId) {
@@ -771,6 +781,23 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                       setSelectedElementId(null)
                     }}
                   >
+                    {/* Snap guide lines — visible when element snaps to center */}
+                    {(snappedAxis.x || snappedAxis.y) && (
+                      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                        {snappedAxis.x && (
+                          <div
+                            className="absolute left-1/2 top-0 h-full -translate-x-1/2"
+                            style={{ width: 0, borderLeft: "2px dashed #f43f5e" }}
+                          />
+                        )}
+                        {snappedAxis.y && (
+                          <div
+                            className="absolute left-0 top-1/2 w-full -translate-y-1/2"
+                            style={{ height: 0, borderTop: "2px dashed #f43f5e" }}
+                          />
+                        )}
+                      </div>
+                    )}
                     {/* Render elements in this zone */}
                     {elementsInCurrentImage
                       .filter((el) => el.zoneId === zone.id)
