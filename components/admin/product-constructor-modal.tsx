@@ -181,6 +181,9 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
     return () => window.removeEventListener("resize", updateImageRect)
   }, [updateImageRect])
 
+  const SNAP_THRESHOLD = 3 // % distance to snap to center
+  const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
+
   const constrainPos = useCallback((x: number, y: number) => ({
     x: Math.max(0, Math.min(100, x)),
     y: Math.max(0, Math.min(100, y)),
@@ -203,6 +206,11 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
     const mx = e.clientX - cr.left - zl
     const my = e.clientY - cr.top - zt
     const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100)
+    const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
+    const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
+    if (snapX) newPos.x = 50
+    if (snapY) newPos.y = 50
+    setSnappedAxis({ x: snapX, y: snapY })
     pendingPosRef.current = newPos
     if (!rafRef.current) {
       rafRef.current = requestAnimationFrame(() => {
@@ -215,6 +223,7 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
   const handleMouseUp = () => {
     setIsDragging(false)
     setIsResizing(null)
+    setSnappedAxis({ x: false, y: false })
     if (pendingPosRef.current) { setPrintPosition(pendingPosRef.current); pendingPosRef.current = null }
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
   }
@@ -447,6 +456,23 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
                     }}
                     onClick={() => setIsPrintSelected(false)}
                   >
+                    {/* Snap guide lines — visible when print snaps to center */}
+                    {(snappedAxis.x || snappedAxis.y) && (
+                      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                        {snappedAxis.x && (
+                          <div
+                            className="absolute left-1/2 top-0 h-full -translate-x-1/2"
+                            style={{ width: 0, borderLeft: "2px dashed #f43f5e" }}
+                          />
+                        )}
+                        {snappedAxis.y && (
+                          <div
+                            className="absolute left-0 top-1/2 w-full -translate-y-1/2"
+                            style={{ height: 0, borderTop: "2px dashed #f43f5e" }}
+                          />
+                        )}
+                      </div>
+                    )}
                     {print.image_url && (
                       <div
                         className={cn(
