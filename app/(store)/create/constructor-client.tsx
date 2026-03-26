@@ -201,6 +201,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [textFont, setTextFont] = useState("sans-serif")
   const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("center")
   const [qrInput, setQrInput] = useState("")
+  const [fonts, setFonts] = useState(FONTS)
 
   // -------------------------------------------------------------------------
   // Measure image position within canvas
@@ -525,6 +526,27 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     })
     setTextInput("")
   }, [textInput, textColor, textFont, textAlign, addElement])
+
+  const handleFontUpload = useCallback((file: File) => {
+    const name = file.name.replace(/\.(ttf|woff2?|otf)$/i, "")
+    const fontFamily = `custom-${name}`
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const fontFace = new FontFace(fontFamily, reader.result as ArrayBuffer)
+        await fontFace.load()
+        document.fonts.add(fontFace)
+        setFonts((prev) => {
+          if (prev.some((f) => f.value === fontFamily)) return prev
+          return [...prev, { value: fontFamily, label: name }]
+        })
+        setTextFont(fontFamily)
+      } catch (err) {
+        console.error("Failed to load font:", err)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }, [])
 
   const handleAddQr = useCallback(async () => {
     if (!qrInput.trim()) return
@@ -980,6 +1002,8 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               align={textAlign}
               onAlignChange={setTextAlign}
               onAdd={handleAddText}
+              fonts={fonts}
+              onFontUpload={handleFontUpload}
             />
           )}
           {activeTab === "qr" && (
@@ -1680,13 +1704,18 @@ function TextTab({
   font, onFontChange,
   align, onAlignChange,
   onAdd,
+  fonts,
+  onFontUpload,
 }: {
   text: string; onTextChange: (v: string) => void
   color: string; onColorChange: (v: string) => void
   font: string; onFontChange: (v: string) => void
   align: "left" | "center" | "right"; onAlignChange: (v: "left" | "center" | "right") => void
   onAdd: () => void
+  fonts: { value: string; label: string }[]
+  onFontUpload: (file: File) => void
 }) {
+  const fontInputRef = useRef<HTMLInputElement>(null)
   return (
     <div className="flex flex-col gap-5">
       {/* Text input */}
@@ -1738,12 +1767,31 @@ function TextTab({
             onChange={(e) => onFontChange(e.target.value)}
             className="ml-auto h-10 flex-1 rounded-lg border border-border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            {FONTS.map((f) => (
+            {fonts.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
               </option>
             ))}
           </select>
+          <input
+            ref={fontInputRef}
+            type="file"
+            accept=".ttf,.woff,.woff2,.otf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onFontUpload(file)
+              e.target.value = ""
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fontInputRef.current?.click()}
+            className="rounded-lg border border-border p-2.5 text-muted-foreground transition-all hover:bg-muted"
+            title={"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0438\u0442\u0438 \u0448\u0440\u0438\u0444\u0442"}
+          >
+            <Upload className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
