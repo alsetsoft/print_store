@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import {
   ImagePlus, Type, QrCode, Paintbrush,
   ZoomIn, ZoomOut, FlipHorizontal2, Trash2,
-  Maximize2, Minimize2, X, ChevronLeft, ChevronRight,
+  Maximize2, Minimize2, X,
   Upload, AlignLeft, AlignCenter, AlignRight,
   RotateCcw, Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown,
 } from "lucide-react"
@@ -620,49 +620,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", viewsOpen && "rotate-180")} />
         </button>
         <div className={cn("flex flex-col lg:!block", viewsOpen ? "block" : "hidden lg:block")}>
-        {/* View thumbnails */}
-        {currentImages.length > 1 && (
-          <div className="border-b border-border p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {"\u0412\u0438\u0433\u043b\u044f\u0434"}
-            </p>
-            <div className="flex gap-2 lg:flex-col">
-              {currentImages.map((img, idx) => {
-                const hasElements = elements.some((el) =>
-                  img.zones.some((z) => z.id === el.zoneId)
-                )
-                return (
-                <button
-                  key={img.id}
-                  onClick={() => handleImageChange(idx)}
-                  className={cn(
-                    "relative overflow-hidden rounded-xl border-2 transition-all",
-                    "h-16 w-16 lg:h-20 lg:w-20",
-                    safeImgIndex === idx
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "border-border hover:border-primary/40"
-                  )}
-                >
-                  <img
-                    src={img.url}
-                    alt={img.label}
-                    className="h-full w-full object-cover"
-                  />
-                  {safeImgIndex === idx && (
-                    <div className="absolute inset-0 bg-primary/5" />
-                  )}
-                  {hasElements && (
-                    <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 shadow-sm">
-                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                    </div>
-                  )}
-                </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Zone selector */}
         <div className="flex-1 overflow-y-auto p-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -867,6 +824,56 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               })}
             </div>
 
+            {/* Side/view thumbnails */}
+            {currentImages.length > 1 && (
+              <div className="mt-6 flex justify-center gap-3">
+                {currentImages.map((img, idx) => {
+                  const hasElements = elements.some((el) =>
+                    img.zones.some((z) => z.id === el.zoneId)
+                  )
+                  const isActive = safeImgIndex === idx
+                  return (
+                    <button
+                      key={img.id}
+                      onClick={() => handleImageChange(idx)}
+                      className={cn(
+                        "relative flex flex-col items-center gap-1.5 transition-all",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "relative h-20 w-20 overflow-hidden rounded-xl border-2 transition-all",
+                          isActive
+                            ? "border-primary ring-2 ring-primary/30 shadow-md scale-105"
+                            : "border-border hover:border-primary/40 hover:shadow-sm"
+                        )}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.label}
+                          className="h-full w-full object-cover"
+                        />
+                        {isActive && (
+                          <div className="absolute inset-0 bg-primary/5" />
+                        )}
+                        {hasElements && (
+                          <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 shadow-sm">
+                            <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                          </div>
+                        )}
+                      </div>
+                      <span className={cn(
+                        "text-xs font-medium",
+                        isActive ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {img.label || `${idx + 1}`}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             {/* Color selector (filters images by color) */}
             {currentColors.length > 0 && (
               <div className="mt-6 flex items-center gap-2">
@@ -910,28 +917,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               <span className="text-sm text-muted-foreground">{currentBase.name}</span>
             </div>
 
-            {/* Image navigation */}
-            {currentImages.length > 1 && (
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  onClick={() => handleImageChange(Math.max(0, safeImgIndex - 1))}
-                  disabled={safeImgIndex === 0}
-                  className="rounded-full border border-border bg-card p-2 shadow-sm transition-colors disabled:opacity-30 hover:bg-muted"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-sm font-medium text-muted-foreground">
-                  {currentImage.label || `${safeImgIndex + 1} / ${currentImages.length}`}
-                </span>
-                <button
-                  onClick={() => handleImageChange(Math.min(currentImages.length - 1, safeImgIndex + 1))}
-                  disabled={safeImgIndex === currentImages.length - 1}
-                  className="rounded-full border border-border bg-card p-2 shadow-sm transition-colors disabled:opacity-30 hover:bg-muted"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
           </>
         ) : (
           <p className="text-muted-foreground">
