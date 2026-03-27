@@ -38,6 +38,7 @@ interface ProductDetailClientProps {
   colorOptions: ColorOption[]
   sizes: SizeOption[]
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
+  initialColorId?: number | null
 }
 
 export function ProductDetailClient({
@@ -47,8 +48,13 @@ export function ProductDetailClient({
   colorOptions,
   sizes,
   placements,
+  initialColorId,
 }: ProductDetailClientProps) {
-  const [selectedColorId, setSelectedColorId] = useState<number>(colorOptions[0]?.id ?? 0)
+  const [selectedColorId, setSelectedColorId] = useState<number>(
+    initialColorId && colorOptions.some(c => c.id === initialColorId)
+      ? initialColorId
+      : colorOptions[0]?.id ?? 0
+  )
   const [selectedSizeId, setSelectedSizeId] = useState<number | null>(sizes[0]?.id ?? null)
 
   const { addItem } = useCart()

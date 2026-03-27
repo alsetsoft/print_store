@@ -13,6 +13,7 @@ interface ProductCardProps {
     printImageUrl: string | null
     zones: { id: string; x: number; y: number; width: number; height: number }[]
     placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
+    colorId?: number | null
   }
 }
 
@@ -107,7 +108,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link
-      href={`/product/${product.id}`}
+      href={product.colorId ? `/product/${product.id}?color=${product.colorId}` : `/product/${product.id}`}
       className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-all hover:border-primary/30 hover:shadow-md"
     >
       <div className="relative aspect-square overflow-hidden bg-muted">

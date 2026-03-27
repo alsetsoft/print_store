@@ -18,6 +18,7 @@ type Product = {
   printImageUrl: string | null
   zones: { id: string; x: number; y: number; width: number; height: number }[]
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }>
+  colorId?: number | null
 }
 
 interface CatalogPageClientProps {

@@ -22,10 +22,14 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ProductDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ color?: string }>
 }) {
   const { id } = await params
+  const sp = await searchParams
+  const initialColorId = sp.color ? parseInt(sp.color) : null
   const productId = parseInt(id)
   if (isNaN(productId)) notFound()
 
@@ -218,6 +222,7 @@ export default async function ProductDetailPage({
         colorOptions={colorOptions}
         sizes={sizes}
         placements={placements}
+        initialColorId={initialColorId}
       />
     </div>
   )

@@ -77,7 +77,7 @@ export default async function CatalogPage({
   let productQuery = supabase
     .from("products")
     .select(
-      `id, name, price, base_id, print_id,
+      `id, name, price, base_id, print_id, base_image_id,
        bases:base_id(id, name, image_url, base_category_id, base_subcategory_id),
        print_designs:print_id(id, name, image_url)`,
       { count: "exact" }
@@ -134,6 +134,7 @@ export default async function CatalogPage({
     price: number | null
     base_id: number
     print_id: number
+    base_image_id: number | null
     bases: { id: number; name: string; image_url: string | null; base_category_id: number | null; base_subcategory_id: number | null } | null
     print_designs: { id: number; name: string; image_url: string | null } | null
   }>
@@ -146,7 +147,7 @@ export default async function CatalogPage({
     uniqueBaseIds.length > 0
       ? supabase
           .from("base_images")
-          .select("id, base_id, url, sort_order")
+          .select("id, base_id, url, color_id, sort_order")
           .in("base_id", uniqueBaseIds)
           .order("sort_order")
       : Promise.resolve({ data: [] }),
@@ -159,7 +160,7 @@ export default async function CatalogPage({
   ])
 
   const allImages = (imagesRes.data ?? []) as Array<{
-    id: number; base_id: number; url: string; sort_order: number
+    id: number; base_id: number; url: string; color_id: number | null; sort_order: number
   }>
 
   const firstImageByBase = new Map<number, { id: number; url: string }>()
@@ -244,6 +245,10 @@ export default async function CatalogPage({
         width: Number(z.width),
         height: Number(z.height),
       })),
+      colorId: (() => {
+        const img = allImages.find(i => i.id === p.base_image_id)
+        return img?.color_id ?? null
+      })(),
       placements: (() => {
         const raw = placementsByProduct.get(p.id) ?? {}
         const resolved: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}
