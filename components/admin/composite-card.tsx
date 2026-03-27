@@ -20,6 +20,7 @@ export interface BaseImage {
   id: string
   url: string
   label: string
+  colorId: number | null
   zones: Zone[]
 }
 

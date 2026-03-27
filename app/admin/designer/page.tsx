@@ -99,6 +99,7 @@ function DesignerContent() {
               id: String(img.id),
               url: imageUrl,
               label: imageLabel,
+              colorId: null,
               zones: (zonesData || []).map((z) => ({
                 id: String(z.id),
                 name: z.name,

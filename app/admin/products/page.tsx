@@ -16,6 +16,7 @@ interface RawProduct {
   price: number
   is_active: boolean
   created_at: string
+  base_image_id: number | null
   print_config: PrintConfig | null
   bases: { id: string; name: string; image_url: string | null } | null
   print_designs: { id: string; name: string; image_url: string | null } | null
@@ -36,6 +37,7 @@ interface ProductWithImages {
   price: number
   is_active: boolean
   created_at: string
+  base_image_id: number | null
   print_config: PrintConfig | null
   placements: Record<string, PrintPlacement>
   base: CompositeBase | null
@@ -102,7 +104,7 @@ export default function ProductsPage() {
 
         const { data: rawImages } = await supabase
           .from("base_images")
-          .select("id, url, sort_order")
+          .select("id, url, color_id, sort_order")
           .eq("base_id", p.bases.id)
           .order("sort_order")
 
@@ -118,6 +120,7 @@ export default function ProductsPage() {
               id: String(img.id),
               url: decoded.url,
               label: decoded.label || "Зображення",
+              colorId: img.color_id ?? null,
               zones: (zonesData || []).map((z): Zone => ({
                 id: String(z.id),
                 name: z.name,
@@ -130,8 +133,18 @@ export default function ProductsPage() {
           })
         )
 
-        const base: CompositeBase = { id: String(p.bases.id), name: p.bases.name, images }
-        return { ...p, base, print: p.print_designs, placements }
+        // Determine product color from base_image_id
+        const productColorId = p.base_image_id
+          ? images.find(img => img.id === String(p.base_image_id))?.colorId ?? null
+          : null
+
+        // Filter to only images of that color (or all if no color)
+        const filteredImages = productColorId != null
+          ? images.filter(img => img.colorId === productColorId)
+          : images
+
+        const base: CompositeBase = { id: String(p.bases.id), name: p.bases.name, images: filteredImages }
+        return { ...p, base_image_id: p.base_image_id ?? null, base, print: p.print_designs, placements }
       })
     )
 

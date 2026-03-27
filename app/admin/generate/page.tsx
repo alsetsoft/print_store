@@ -24,10 +24,36 @@ interface Base extends CompositeBase {
   price: number | null
   image_url: string | null
   base_categories: { name: string } | null
+  colors: { id: number; name: string; hex_code: string | null }[]
 }
 
 interface Print extends CompositePrint {
   print_categories: { name: string } | null
+}
+
+// ─── Zone mapping helper ────────────────────────────────────────────────────
+
+function mapEntriesToColor(
+  base: Base,
+  entries: MultiZoneEntry[],
+  fromColorId: number,
+  toColorId: number
+): MultiZoneEntry[] {
+  const fromImages = base.images.filter((img) => img.colorId === fromColorId)
+  const toImages = base.images.filter((img) => img.colorId === toColorId)
+
+  return entries.map((entry) => {
+    const srcIdx = fromImages.findIndex((img) => img.id === entry.imageId)
+    const targetImg = toImages[srcIdx] ?? toImages[0]
+    if (!targetImg) return entry
+
+    const srcImage = fromImages[srcIdx]
+    const zoneIdx = srcImage?.zones.findIndex((z) => z.id === entry.zoneId) ?? 0
+    const targetZone = targetImg.zones[zoneIdx] ?? targetImg.zones[0]
+    if (!targetZone) return entry
+
+    return { ...entry, imageId: targetImg.id, zoneId: targetZone.id }
+  })
 }
 
 // ─── Print Selector Dropdown ─────────────────────────────────────────────────
@@ -72,9 +98,9 @@ function PrintSelectorDropdown({
         {selected ? (
           <>
             {selected.image_url && (
-              <img src={selected.image_url} alt="" className="h-5 w-5 rounded object-cover" />
+              <img src={selected.image_url} alt="" className="h-8 w-8 rounded object-cover" />
             )}
-            <span className="max-w-[120px] truncate">{selected.name}</span>
+            <span className="max-w-[140px] truncate">{selected.name}</span>
           </>
         ) : (
           "\u041E\u0431\u0440\u0430\u0442\u0438 \u043F\u0440\u0438\u043D\u0442..."
@@ -82,7 +108,7 @@ function PrintSelectorDropdown({
         <ChevronDown className="h-3 w-3 shrink-0" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-card shadow-xl">
+        <div className="absolute left-0 top-full z-50 mt-1 w-96 rounded-lg border border-border bg-card shadow-xl">
           <div className="p-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -96,32 +122,34 @@ function PrintSelectorDropdown({
               />
             </div>
           </div>
-          <div className="max-h-48 overflow-y-auto px-1 pb-1">
+          <div className="max-h-72 overflow-y-auto px-1 pb-1">
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-xs text-muted-foreground">{"\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E"}</p>
             ) : (
-              filtered.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    onSelect(p.id, p.image_url || "")
-                    setOpen(false)
-                    setSearch("")
-                  }}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted",
-                    p.id === selectedPrintId && "bg-primary/10"
-                  )}
-                >
-                  <div className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
-                    {p.image_url
-                      ? <img src={p.image_url} alt="" className="h-full w-full object-cover" />
-                      : <Layers className="m-auto mt-1.5 h-4 w-4 text-muted-foreground" />
-                    }
-                  </div>
-                  <span className="truncate">{p.name}</span>
-                </button>
-              ))
+              <div className="grid grid-cols-2 gap-1">
+                {filtered.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      onSelect(p.id, p.image_url || "")
+                      setOpen(false)
+                      setSearch("")
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted",
+                      p.id === selectedPrintId && "bg-primary/10"
+                    )}
+                  >
+                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-muted">
+                      {p.image_url
+                        ? <img src={p.image_url} alt="" className="h-full w-full object-cover" />
+                        : <Layers className="m-auto mt-3 h-5 w-5 text-muted-foreground" />
+                      }
+                    </div>
+                    <span className="truncate">{p.name}</span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -136,27 +164,69 @@ function ZonePickerModal({
   base,
   entries,
   prints,
+  initialColorIds,
   onSave,
   onClose,
 }: {
   base: Base
   entries: MultiZoneEntry[]
   prints: Print[]
-  onSave: (entries: MultiZoneEntry[]) => void
+  initialColorIds: number[]
+  onSave: (entries: MultiZoneEntry[], colorIds: number[]) => void
   onClose: () => void
 }) {
   const [local, setLocal] = useState<MultiZoneEntry[]>([...entries])
+  const [selectedColorIds, setSelectedColorIds] = useState<number[]>(
+    initialColorIds.length > 0
+      ? initialColorIds
+      : base.colors.length > 0
+        ? [base.colors[0].id]
+        : []
+  )
+
+  const prevDisplayColorIdRef = useRef<number | null>(selectedColorIds[0] ?? null)
+
+  // Display color = first selected color (used for filtering images)
+  const displayColorId = selectedColorIds[0] ?? null
+
+  // Filter images by display color
+  const visibleImages = displayColorId != null
+    ? base.images.filter((img) => img.colorId === displayColorId)
+    : base.images.filter((img) => img.colorId == null)
+
+  // Auto-map zones when display color changes
+  useEffect(() => {
+    const prevColorId = prevDisplayColorIdRef.current
+    if (prevColorId !== displayColorId && prevColorId != null && displayColorId != null && local.length > 0) {
+      setLocal((prev) => mapEntriesToColor(base, prev, prevColorId, displayColorId))
+    }
+    prevDisplayColorIdRef.current = displayColorId
+  }, [displayColorId, base])
 
   // Build a lookup: zoneId → entry index
   const selectedZoneIds = new Set(local.map((e) => e.zoneId))
 
   // Find zone+image info by zoneId
   const findZoneInfo = (zoneId: string) => {
+    for (const img of visibleImages) {
+      const zone = img.zones.find((z) => z.id === zoneId)
+      if (zone) return { image: img, zone }
+    }
+    // Also check all images as fallback
     for (const img of base.images) {
       const zone = img.zones.find((z) => z.id === zoneId)
       if (zone) return { image: img, zone }
     }
     return null
+  }
+
+  const toggleColor = (colorId: number) => {
+    setSelectedColorIds((prev) => {
+      if (prev.includes(colorId)) {
+        return prev.length > 1 ? prev.filter((id) => id !== colorId) : prev
+      }
+      return [...prev, colorId]
+    })
   }
 
   const toggleZone = (imageId: string, zoneId: string) => {
@@ -206,7 +276,7 @@ function ZonePickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl">
+      <div className="w-full max-w-5xl rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
             <h2 className="font-semibold text-foreground">{base.name}</h2>
@@ -220,18 +290,51 @@ function ZonePickerModal({
           </button>
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto p-6">
-          {base.images.length === 0 ? (
+        <div className="max-h-[75vh] overflow-y-auto p-6">
+          {/* Color selector */}
+          {base.colors.length > 0 && (
+            <div className="mb-6">
+              <p className="mb-2 text-sm font-medium text-foreground">{"\u041A\u043E\u043B\u044C\u043E\u0440\u0438"}</p>
+              <div className="flex flex-wrap gap-2">
+                {base.colors.map((color) => {
+                  const isActive = selectedColorIds.includes(color.id)
+                  return (
+                    <button
+                      key={color.id}
+                      onClick={() => toggleColor(color.id)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-full border-2 px-3 py-1.5 text-sm transition-all",
+                        isActive
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border text-foreground hover:border-primary/50"
+                      )}
+                    >
+                      {color.hex_code && (
+                        <span
+                          className="h-4 w-4 rounded-full border border-border"
+                          style={{ backgroundColor: color.hex_code }}
+                        />
+                      )}
+                      {color.name}
+                      {isActive && <Check className="h-3.5 w-3.5" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {visibleImages.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {"\u041D\u0435\u043C\u0430\u0454 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C \u0434\u043B\u044F \u0446\u0456\u0454\u0457 \u043E\u0441\u043D\u043E\u0432\u0438"}
             </p>
           ) : (
             <div className="space-y-6">
-              {base.images.map((img) => (
+              {visibleImages.map((img) => (
                 <div key={img.id}>
                   <p className="mb-2 text-sm font-medium text-foreground">{img.label}</p>
                   <div className="flex gap-4">
-                    <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
+                    <div className="relative h-52 w-52 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
                       <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
                       {img.zones.map((z) => (
                         <div
@@ -264,7 +367,7 @@ function ZonePickerModal({
                               key={z.id}
                               onClick={() => toggleZone(img.id, z.id)}
                               className={cn(
-                                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                                "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-left text-sm transition-all",
                                 isSelected
                                   ? "border-primary bg-primary/10 text-primary"
                                   : "border-border text-foreground hover:border-primary/50"
@@ -295,7 +398,7 @@ function ZonePickerModal({
           {local.length > 0 && (
             <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
-              <div className="space-y-2">
+              <div className={cn("gap-2", local.length > 2 ? "grid grid-cols-2" : "space-y-2")}>
                 {local.map((entry, i) => {
                   const info = findZoneInfo(entry.zoneId)
                   if (!info) return null
@@ -342,6 +445,7 @@ function ZonePickerModal({
             {local.length === 0
               ? "\u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043D\u0430 \u0437\u043E\u043D\u0443 \u0449\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438"
               : `${local.length} \u0437\u043E\u043D${local.length === 1 ? "\u0430" : local.length < 5 ? "\u0438" : ""} \u043E\u0431\u0440\u0430\u043D\u043E`}
+            {selectedColorIds.length > 0 && ` \u2022 ${selectedColorIds.length} \u043A\u043E\u043B\u044C\u043E\u0440${selectedColorIds.length === 1 ? "" : selectedColorIds.length < 5 ? "\u0438" : "\u0456\u0432"}`}
           </p>
           <div className="flex gap-3">
             <button
@@ -351,7 +455,7 @@ function ZonePickerModal({
               {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
             </button>
             <button
-              onClick={() => { onSave(local); onClose() }}
+              onClick={() => { onSave(local, selectedColorIds); onClose() }}
               disabled={!isValid}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
@@ -377,6 +481,7 @@ export default function GeneratePage() {
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set())
 
   const [zoneSelections, setZoneSelections] = useState<Record<string, MultiZoneEntry[]>>({})
+  const [colorSelections, setColorSelections] = useState<Record<string, number[]>>({})
   const [zonePickerBase, setZonePickerBase] = useState<Base | null>(null)
   const [rejectedKeys, setRejectedKeys] = useState<Set<string>>(new Set())
 
@@ -390,7 +495,7 @@ export default function GeneratePage() {
     const [{ data: basesData }, { data: printsData }] = await Promise.all([
       supabase
         .from("bases")
-        .select(`id, name, sku, price, image_url, base_categories:base_category_id(name), base_images(id, url, sort_order)`)
+        .select(`id, name, sku, price, image_url, base_categories:base_category_id(name), base_colors(color_id, colors:color_id(id, name, hex_code)), base_images(id, url, color_id, sort_order)`)
         .order("name"),
       supabase
         .from("print_designs")
@@ -400,7 +505,7 @@ export default function GeneratePage() {
 
     const basesWithImages: Base[] = await Promise.all(
       (basesData || []).map(async (b) => {
-        const rawImages = ((b.base_images as { id: number; url: string; sort_order: number | null }[]) || [])
+        const rawImages = ((b.base_images as { id: number; url: string; color_id: number | null; sort_order: number | null }[]) || [])
           .sort((a, c) => (a.sort_order ?? 0) - (c.sort_order ?? 0))
 
         const images: BaseImage[] = await Promise.all(
@@ -415,6 +520,7 @@ export default function GeneratePage() {
               id: String(img.id),
               url: decoded.url,
               label: decoded.label || "Зображення",
+              colorId: img.color_id,
               zones: (zonesData || []).map((z) => ({
                 id: String(z.id),
                 name: z.name,
@@ -429,6 +535,12 @@ export default function GeneratePage() {
           })
         )
 
+        // Parse base_colors
+        const rawColors = (b.base_colors as unknown as { color_id: number; colors: { id: number; name: string; hex_code: string | null } | null }[]) || []
+        const colors = rawColors
+          .filter((bc) => bc.colors != null)
+          .map((bc) => bc.colors!)
+
         return {
           id: String(b.id),
           name: b.name,
@@ -436,7 +548,8 @@ export default function GeneratePage() {
           price: b.price as number | null,
           image_url: b.image_url,
           images,
-          base_categories: b.base_categories as { name: string } | null,
+          colors,
+          base_categories: b.base_categories as unknown as { name: string } | null,
         }
       })
     )
@@ -448,7 +561,7 @@ export default function GeneratePage() {
         name: p.name,
         image_url: p.image_url,
         price: p.price as number | null,
-        print_categories: p.print_categories as { name: string } | null,
+        print_categories: p.print_categories as unknown as { name: string } | null,
       }))
     )
     setLoading(false)
@@ -503,10 +616,16 @@ export default function GeneratePage() {
   const selectedBases = bases.filter((b) => selectedBaseIds.has(b.id))
   const selectedPrints = prints.filter((p) => selectedPrintIds.has(p.id))
 
-  const allCombinations: { base: Base; print: Print; key: string }[] = []
+  // Build combinations with color dimension
+  type Combination = { base: Base; print: Print; colorId: number | null; key: string }
+  const allCombinations: Combination[] = []
   for (const base of selectedBases) {
+    const colors = colorSelections[base.id]
+    const colorVariants: (number | null)[] = colors?.length > 0 ? colors : [null]
     for (const print of selectedPrints) {
-      allCombinations.push({ base, print, key: `${base.id}-${print.id}` })
+      for (const colorId of colorVariants) {
+        allCombinations.push({ base, print, colorId, key: `${base.id}-${print.id}-${colorId ?? 'def'}` })
+      }
     }
   }
   const activeCombinations = allCombinations.filter((c) => !rejectedKeys.has(c.key))
@@ -521,8 +640,16 @@ export default function GeneratePage() {
       const supabase = createClient()
       let savedTotal = 0
 
-      for (const { base, print } of activeCombinations) {
-        const entries = zoneSelections[base.id] || []
+      for (const { base, print, colorId } of activeCombinations) {
+        const rawEntries = zoneSelections[base.id] || []
+        const colors = colorSelections[base.id] || []
+        const primaryColorId = colors[0] ?? null
+
+        // Map entries to this color if needed
+        let entries = rawEntries
+        if (colorId != null && primaryColorId != null && colorId !== primaryColorId) {
+          entries = mapEntriesToColor(base, rawEntries, primaryColorId, colorId)
+        }
 
         // Determine primary zone (first entry or fallback to is_max/first zone)
         let primaryImageId: number | null = null
@@ -532,8 +659,11 @@ export default function GeneratePage() {
           primaryImageId = parseInt(entries[0].imageId)
           primaryZoneId = parseInt(entries[0].zoneId)
         } else {
-          // Fallback: first image with zones, prefer is_max
-          for (const img of base.images) {
+          // Fallback: first image of this color with zones, prefer is_max
+          const candidateImages = colorId != null
+            ? base.images.filter((img) => img.colorId === colorId)
+            : base.images
+          for (const img of candidateImages) {
             if (img.zones.length > 0) {
               primaryImageId = parseInt(img.id)
               const maxZone = img.zones.find((z: Zone & { is_max?: boolean }) => z.is_max)
@@ -543,11 +673,17 @@ export default function GeneratePage() {
           }
         }
 
+        // Product name with color
+        const colorName = colorId != null ? base.colors.find((c) => c.id === colorId)?.name : null
+        const productName = colors.length > 1 && colorName
+          ? `${base.name} + ${print.name} (${colorName})`
+          : `${base.name} + ${print.name}`
+
         // Insert product and get back the id
         const { data: inserted, error: insertErr } = await supabase
           .from("products")
           .insert({
-            name: `${base.name} + ${print.name}`,
+            name: productName,
             base_id: parseInt(base.id),
             print_id: parseInt(print.id),
             base_image_id: primaryImageId,
@@ -585,6 +721,7 @@ export default function GeneratePage() {
       setSelectedPrintIds(new Set())
       setRejectedKeys(new Set())
       setZoneSelections({})
+      setColorSelections({})
     } catch (err) {
       console.error("[v0] Failed to save products:", err)
     } finally {
@@ -668,6 +805,7 @@ export default function GeneratePage() {
               const hasZones = base.images.some((img) => img.zones.length > 0)
               const hasSelection = (zoneSelections[base.id] || []).length > 0
               const totalZones = base.images.reduce((acc, img) => acc + img.zones.length, 0)
+              const selectedColors = colorSelections[base.id] || []
               return (
                 <div
                   key={base.id}
@@ -691,7 +829,7 @@ export default function GeneratePage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-foreground">{base.name}</p>
-                    <p className="text-xs text-muted-foreground">{base.sku || base.base_categories?.name || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{base.sku || base.base_categories?.name || "\u2014"}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span className={cn(
@@ -710,6 +848,14 @@ export default function GeneratePage() {
                       >
                         {hasSelection ? `\u0417\u043E\u043D\u0438 (${zoneSelections[base.id].length}) \u2713` : "\u0417\u043E\u043D\u0438"}
                       </button>
+                    )}
+                    {isSelected && base.colors.length > 0 && (
+                      <span className="rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
+                        {selectedColors.length > 0
+                          ? `${selectedColors.length}/${base.colors.length} \u043A\u043E\u043B\u044C\u043E\u0440\u0456\u0432`
+                          : `${base.colors.length} \u043A\u043E\u043B\u044C\u043E\u0440\u0456\u0432`
+                        }
+                      </span>
                     )}
                   </div>
                 </div>
@@ -803,15 +949,37 @@ export default function GeneratePage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {activeCombinations.map(({ base, print, key }) => (
-                <CompositeCard
-                  key={key}
-                  base={base}
-                  print={print}
-                  multiZoneSelection={zoneSelections[base.id] || []}
-                  onReject={() => rejectCombo(key)}
-                />
-              ))}
+              {activeCombinations.map(({ base, print, colorId, key }) => {
+                const colorBase = colorId != null
+                  ? { ...base, images: base.images.filter((img) => img.colorId === colorId) }
+                  : base
+                const colorName = colorId != null ? base.colors.find((c) => c.id === colorId)?.name : null
+                const colors = colorSelections[base.id] || []
+                const rawEntries = zoneSelections[base.id] || []
+                const primaryColorId = colors[0] ?? null
+
+                // Map entries to this color for preview
+                let entries = rawEntries
+                if (colorId != null && primaryColorId != null && colorId !== primaryColorId) {
+                  entries = mapEntriesToColor(base, rawEntries, primaryColorId, colorId)
+                }
+
+                return (
+                  <div key={key} className="relative">
+                    <CompositeCard
+                      base={colorBase}
+                      print={print}
+                      multiZoneSelection={entries}
+                      onReject={() => rejectCombo(key)}
+                    />
+                    {colorName && colors.length > 1 && (
+                      <span className="absolute left-2 top-2 z-10 rounded-full bg-card/90 px-2 py-0.5 text-xs font-medium text-foreground shadow-sm border border-border">
+                        {colorName}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -823,7 +991,11 @@ export default function GeneratePage() {
           base={zonePickerBase}
           entries={zoneSelections[zonePickerBase.id] || []}
           prints={prints}
-          onSave={(entries) => setZoneSelections((prev) => ({ ...prev, [zonePickerBase.id]: entries }))}
+          initialColorIds={colorSelections[zonePickerBase.id] || []}
+          onSave={(entries, colorIds) => {
+            setZoneSelections((prev) => ({ ...prev, [zonePickerBase.id]: entries }))
+            setColorSelections((prev) => ({ ...prev, [zonePickerBase.id]: colorIds }))
+          }}
           onClose={() => setZonePickerBase(null)}
         />
       )}
