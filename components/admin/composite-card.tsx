@@ -39,6 +39,14 @@ export interface CompositePrint {
 // zoneSelection: baseImageId → zoneId (first zone used as fallback)
 export type ZoneSelection = Record<string, string>
 
+export interface MultiZoneEntry {
+  imageId: string
+  zoneId: string
+  printId?: string        // undefined for primary zone (index 0)
+  printImageUrl?: string  // resolved URL for rendering
+}
+export type MultiZoneSelection = MultiZoneEntry[]
+
 interface PrintPlacement {
   zone_id: string
   x: number
@@ -51,6 +59,7 @@ export function CompositeCard({
   base,
   print,
   zoneSelection,
+  multiZoneSelection,
   printConfig,
   placements = {},
   onReject,
@@ -61,6 +70,7 @@ export function CompositeCard({
   base: CompositeBase
   print: CompositePrint
   zoneSelection?: ZoneSelection
+  multiZoneSelection?: MultiZoneSelection
   printConfig?: PrintConfig | null
   placements?: Record<string, PrintPlacement>
   onReject?: () => void
@@ -82,19 +92,31 @@ export function CompositeCard({
   const selectedZone = currentImage?.zones.find((z) => z.id === resolvedZoneId)
     ?? currentImage?.zones[0]
 
+  // Multi-zone entries for this image
+  const multiZoneEntries = multiZoneSelection
+    ? multiZoneSelection.filter((e) => currentImage && e.imageId === currentImage.id)
+    : []
+
+  // Flag: was multiZoneSelection explicitly provided (even if empty)?
+  const hasMultiZoneSelection = multiZoneSelection !== undefined
+
   // Stable serialization for all object dependencies to avoid useEffect array size changes
   const placementsJson = JSON.stringify(placements || {})
   const printConfigJson = JSON.stringify(printConfig || null)
   const selectedZoneJson = JSON.stringify(selectedZone || null)
+  const multiZoneEntriesJson = JSON.stringify(multiZoneEntries)
   const currentImageUrl = currentImage?.url || ""
+  const allZonesJson = JSON.stringify(currentImage?.zones || [])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !currentImageUrl) return
-    
+
     // Parse serialized dependencies
     const parsedPrintConfig = printConfigJson ? JSON.parse(printConfigJson) as PrintConfig | null : null
     const parsedSelectedZone = selectedZoneJson ? JSON.parse(selectedZoneJson) as Zone | null : null
+    const parsedMultiZoneEntries = JSON.parse(multiZoneEntriesJson) as MultiZoneEntry[]
+    const parsedAllZones = JSON.parse(allZonesJson) as Zone[]
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
@@ -116,6 +138,48 @@ export function CompositeCard({
       ctx.clearRect(0, 0, SIZE, SIZE)
       ctx.drawImage(baseImg, ox, oy, w, h)
 
+      // Helper to draw a print image into a zone with contain-fit
+      const drawPrintInZone = (pImg: HTMLImageElement, zone: Zone) => {
+        const zx = ox + (zone.x / 100) * w
+        const zy = oy + (zone.y / 100) * h
+        const zw = (zone.width / 100) * w
+        const zh = (zone.height / 100) * h
+        const printRatio = pImg.naturalWidth / pImg.naturalHeight
+        const zoneRatio = zw / zh
+        let pw: number, ph: number
+        if (printRatio > zoneRatio) { pw = zw; ph = zw / printRatio }
+        else { ph = zh; pw = zh * printRatio }
+        const px = zx + (zw - pw) / 2
+        const py = zy + (zh - ph) / 2
+        ctx.drawImage(pImg, px, py, pw, ph)
+      }
+
+      // Multi-zone rendering path (when multiZoneSelection is provided, always use this path)
+      if (hasMultiZoneSelection) {
+        const printSources: { url: string; zone: Zone }[] = []
+        for (const entry of parsedMultiZoneEntries) {
+          const zone = parsedAllZones.find((z) => z.id === entry.zoneId)
+          if (!zone) continue
+          // Primary zone (no printId) uses product print, additional zones use their own printImageUrl
+          const url = entry.printId ? entry.printImageUrl : print.image_url
+          if (url) printSources.push({ url, zone })
+        }
+        let loaded = 0
+        if (printSources.length === 0) return
+        for (const src of printSources) {
+          const pImg = new Image()
+          pImg.crossOrigin = "anonymous"
+          pImg.src = src.url
+          pImg.onload = () => {
+            drawPrintInZone(pImg, src.zone)
+            loaded++
+            // No need to wait — each draws independently into its own zone area
+          }
+        }
+        return
+      }
+
+      // Single-zone rendering path (existing behavior)
       if (!parsedSelectedZone || !print.image_url) return
 
       const zx = ox + (parsedSelectedZone.x / 100) * w
@@ -131,28 +195,20 @@ export function CompositeCard({
         // Check for placement data first (from product_print_placements), then fall back to printConfig
         const parsedPlacements = JSON.parse(placementsJson) as Record<string, PrintPlacement>
         const placement = parsedSelectedZone && parsedPlacements[parsedSelectedZone.id]
-        
+
         if (placement) {
-          // Use placement from database
           const px = placement.x / 100
           const py = placement.y / 100
           const ps = placement.scale / 100
-          // Fit print inside zone preserving aspect ratio, then apply scale
           const printRatio = printImg.naturalWidth / printImg.naturalHeight
           const zoneRatio = zw / zh
           let basePw: number, basePh: number
-          if (printRatio > zoneRatio) {
-            basePw = zw
-            basePh = zw / printRatio
-          } else {
-            basePh = zh
-            basePw = zh * printRatio
-          }
+          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
+          else { basePh = zh; basePw = zh * printRatio }
           const pw = basePw * ps
           const ph = basePh * ps
           const finalX = zx + px * zw - pw / 2
           const finalY = zy + py * zh - ph / 2
-
           ctx.save()
           if (placement.is_mirrored) {
             ctx.translate(finalX + pw / 2, 0)
@@ -163,26 +219,18 @@ export function CompositeCard({
           }
           ctx.restore()
         } else if (parsedPrintConfig) {
-          // Use saved position + scale within the zone (legacy)
           const px = parsedPrintConfig.x / 100
           const py = parsedPrintConfig.y / 100
           const ps = parsedPrintConfig.scale / 100
-          // Fit print inside zone preserving aspect ratio, then apply scale
           const printRatio = printImg.naturalWidth / printImg.naturalHeight
           const zoneRatio = zw / zh
           let basePw: number, basePh: number
-          if (printRatio > zoneRatio) {
-            basePw = zw
-            basePh = zw / printRatio
-          } else {
-            basePh = zh
-            basePw = zh * printRatio
-          }
+          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
+          else { basePh = zh; basePw = zh * printRatio }
           const pw = basePw * ps
           const ph = basePh * ps
           const finalX = zx + px * zw - pw / 2
           const finalY = zy + py * zh - ph / 2
-
           ctx.save()
           if (parsedPrintConfig.flipped) {
             ctx.translate(finalX + pw / 2, 0)
@@ -193,24 +241,11 @@ export function CompositeCard({
           }
           ctx.restore()
         } else {
-          // Default: fit print inside zone preserving aspect ratio (contain)
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let pw: number, ph: number
-          if (printRatio > zoneRatio) {
-            pw = zw
-            ph = zw / printRatio
-          } else {
-            ph = zh
-            pw = zh * printRatio
-          }
-          const px = zx + (zw - pw) / 2
-          const py = zy + (zh - ph) / 2
-          ctx.drawImage(printImg, px, py, pw, ph)
+          drawPrintInZone(printImg, parsedSelectedZone)
         }
       }
     }
-  }, [currentImageUrl, print.image_url, selectedZoneJson, printConfigJson, placementsJson])
+  }, [currentImageUrl, print.image_url, selectedZoneJson, printConfigJson, placementsJson, multiZoneEntriesJson, allZonesJson, hasMultiZoneSelection])
 
   return (
     <div

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
-  Wand2, Search, CheckSquare, Loader2, Layers, Package, Plus, Check, Square
+  Wand2, Search, CheckSquare, Loader2, Layers, Package, Plus, Check, Square, X, ChevronDown
 } from "lucide-react"
 import { decodeLabel } from "@/app/admin/parameters/actions"
 import { cn } from "@/lib/utils"
@@ -14,6 +14,7 @@ import {
   type ZoneSelection,
   type BaseImage,
   type Zone,
+  type MultiZoneEntry,
 } from "@/components/admin/composite-card"
 
 // ─── Local types (Base / Print extend shared types) ──────────────────────────
@@ -29,20 +30,179 @@ interface Print extends CompositePrint {
   print_categories: { name: string } | null
 }
 
+// ─── Print Selector Dropdown ─────────────────────────────────────────────────
+
+function PrintSelectorDropdown({
+  prints,
+  selectedPrintId,
+  onSelect,
+}: {
+  prints: Print[]
+  selectedPrintId?: string
+  onSelect: (printId: string, printImageUrl: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const filtered = prints.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  )
+  const selected = prints.find((p) => p.id === selectedPrintId)
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all",
+          selectedPrintId
+            ? "border-primary bg-primary/5 text-foreground"
+            : "border-amber-300 bg-amber-50 text-amber-700"
+        )}
+      >
+        {selected ? (
+          <>
+            {selected.image_url && (
+              <img src={selected.image_url} alt="" className="h-5 w-5 rounded object-cover" />
+            )}
+            <span className="max-w-[120px] truncate">{selected.name}</span>
+          </>
+        ) : (
+          "\u041E\u0431\u0440\u0430\u0442\u0438 \u043F\u0440\u0438\u043D\u0442..."
+        )}
+        <ChevronDown className="h-3 w-3 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-border bg-card shadow-xl">
+          <div className="p-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="\u041F\u043E\u0448\u0443\u043A..."
+                className="w-full rounded border border-input bg-background py-1.5 pl-8 pr-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                autoFocus
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto px-1 pb-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-muted-foreground">{"\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E"}</p>
+            ) : (
+              filtered.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => {
+                    onSelect(p.id, p.image_url || "")
+                    setOpen(false)
+                    setSearch("")
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted",
+                    p.id === selectedPrintId && "bg-primary/10"
+                  )}
+                >
+                  <div className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
+                    {p.image_url
+                      ? <img src={p.image_url} alt="" className="h-full w-full object-cover" />
+                      : <Layers className="m-auto mt-1.5 h-4 w-4 text-muted-foreground" />
+                    }
+                  </div>
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Zone Picker Modal ────────────────────────────────────────────────────────
 
 function ZonePickerModal({
   base,
-  zoneSelection,
+  entries,
+  prints,
   onSave,
   onClose,
 }: {
   base: Base
-  zoneSelection: ZoneSelection
-  onSave: (sel: ZoneSelection) => void
+  entries: MultiZoneEntry[]
+  prints: Print[]
+  onSave: (entries: MultiZoneEntry[]) => void
   onClose: () => void
 }) {
-  const [local, setLocal] = useState<ZoneSelection>({ ...zoneSelection })
+  const [local, setLocal] = useState<MultiZoneEntry[]>([...entries])
+
+  // Build a lookup: zoneId → entry index
+  const selectedZoneIds = new Set(local.map((e) => e.zoneId))
+
+  // Find zone+image info by zoneId
+  const findZoneInfo = (zoneId: string) => {
+    for (const img of base.images) {
+      const zone = img.zones.find((z) => z.id === zoneId)
+      if (zone) return { image: img, zone }
+    }
+    return null
+  }
+
+  const toggleZone = (imageId: string, zoneId: string) => {
+    setLocal((prev) => {
+      const idx = prev.findIndex((e) => e.zoneId === zoneId)
+      if (idx >= 0) {
+        // Remove this zone
+        const next = prev.filter((_, i) => i !== idx)
+        // If we removed index 0, make the new first entry primary (clear its printId)
+        if (idx === 0 && next.length > 0) {
+          next[0] = { ...next[0], printId: undefined, printImageUrl: undefined }
+        }
+        return next
+      } else {
+        // Add zone
+        const isPrimary = prev.length === 0
+        return [...prev, {
+          imageId,
+          zoneId,
+          printId: isPrimary ? undefined : undefined,
+          printImageUrl: isPrimary ? undefined : undefined,
+        }]
+      }
+    })
+  }
+
+  const updateEntryPrint = (zoneId: string, printId: string, printImageUrl: string) => {
+    setLocal((prev) => prev.map((e) =>
+      e.zoneId === zoneId ? { ...e, printId, printImageUrl } : e
+    ))
+  }
+
+  const removeEntry = (zoneId: string) => {
+    setLocal((prev) => {
+      const idx = prev.findIndex((e) => e.zoneId === zoneId)
+      if (idx < 0) return prev
+      const next = prev.filter((_, i) => i !== idx)
+      if (idx === 0 && next.length > 0) {
+        next[0] = { ...next[0], printId: undefined, printImageUrl: undefined }
+      }
+      return next
+    })
+  }
+
+  // Validation: additional zones (index 1+) must have printId
+  const isValid = local.every((e, i) => i === 0 || !!e.printId)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -50,20 +210,20 @@ function ZonePickerModal({
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
             <h2 className="font-semibold text-foreground">{base.name}</h2>
-            <p className="text-sm text-muted-foreground">Оберіть зону для кожного зображення</p>
+            <p className="text-sm text-muted-foreground">{"\u041E\u0431\u0435\u0440\u0456\u0442\u044C \u0437\u043E\u043D\u0438 \u0434\u043B\u044F \u0440\u043E\u0437\u043C\u0456\u0449\u0435\u043D\u043D\u044F \u043F\u0440\u0438\u043D\u0442\u0456\u0432 (\u043C\u043E\u0436\u043D\u0430 \u043A\u0456\u043B\u044C\u043A\u0430)"}</p>
           </div>
           <button
             onClick={onClose}
             className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
           >
-            Скасувати
+            {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
           </button>
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto p-6">
           {base.images.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              Немає зображень для цієї основи
+              {"\u041D\u0435\u043C\u0430\u0454 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C \u0434\u043B\u044F \u0446\u0456\u0454\u0457 \u043E\u0441\u043D\u043E\u0432\u0438"}
             </p>
           ) : (
             <div className="space-y-6">
@@ -76,10 +236,10 @@ function ZonePickerModal({
                       {img.zones.map((z) => (
                         <div
                           key={z.id}
-                          onClick={() => setLocal((prev) => ({ ...prev, [img.id]: z.id }))}
+                          onClick={() => toggleZone(img.id, z.id)}
                           className={cn(
                             "absolute cursor-pointer border-2 transition-all",
-                            local[img.id] === z.id
+                            selectedZoneIds.has(z.id)
                               ? "border-primary bg-primary/30"
                               : "border-primary/50 bg-primary/10 hover:bg-primary/20"
                           )}
@@ -94,26 +254,35 @@ function ZonePickerModal({
                     </div>
                     <div className="flex flex-col gap-2">
                       {img.zones.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Зони не додані</p>
+                        <p className="text-xs text-muted-foreground">{"\u0417\u043E\u043D\u0438 \u043D\u0435 \u0434\u043E\u0434\u0430\u043D\u0456"}</p>
                       ) : (
-                        img.zones.map((z) => (
-                          <button
-                            key={z.id}
-                            onClick={() => setLocal((prev) => ({ ...prev, [img.id]: z.id }))}
-                            className={cn(
-                              "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all",
-                              local[img.id] === z.id
-                                ? "border-primary bg-primary/10 text-primary"
-                                : "border-border text-foreground hover:border-primary/50"
-                            )}
-                          >
-                            {local[img.id] === z.id
-                              ? <CheckSquare className="h-4 w-4 shrink-0" />
-                              : <Square className="h-4 w-4 shrink-0" />
-                            }
-                            {z.name || `Зона ${z.id}`}
-                          </button>
-                        ))
+                        img.zones.map((z) => {
+                          const entryIdx = local.findIndex((e) => e.zoneId === z.id)
+                          const isSelected = entryIdx >= 0
+                          return (
+                            <button
+                              key={z.id}
+                              onClick={() => toggleZone(img.id, z.id)}
+                              className={cn(
+                                "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                                isSelected
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-foreground hover:border-primary/50"
+                              )}
+                            >
+                              {isSelected
+                                ? <CheckSquare className="h-4 w-4 shrink-0" />
+                                : <Square className="h-4 w-4 shrink-0" />
+                              }
+                              {z.name || `\u0417\u043E\u043D\u0430 ${z.id}`}
+                              {isSelected && (
+                                <span className="ml-auto rounded bg-primary/20 px-1.5 py-0.5 text-xs font-medium">
+                                  #{local.findIndex((e) => e.zoneId === z.id) + 1}
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })
                       )}
                     </div>
                   </div>
@@ -121,21 +290,74 @@ function ZonePickerModal({
               ))}
             </div>
           )}
+
+          {/* Selected zones summary */}
+          {local.length > 0 && (
+            <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
+              <div className="space-y-2">
+                {local.map((entry, i) => {
+                  const info = findZoneInfo(entry.zoneId)
+                  if (!info) return null
+                  return (
+                    <div key={entry.zoneId} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-foreground">
+                          {info.zone.name || `\u0417\u043E\u043D\u0430 ${info.zone.id}`}
+                        </span>
+                        <span className="ml-1 text-xs text-muted-foreground">({info.image.label})</span>
+                      </div>
+                      {i === 0 ? (
+                        <span className="shrink-0 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          {"\u041E\u0441\u043D\u043E\u0432\u043D\u0438\u0439 \u043F\u0440\u0438\u043D\u0442"}
+                        </span>
+                      ) : (
+                        <PrintSelectorDropdown
+                          prints={prints}
+                          selectedPrintId={entry.printId}
+                          onSelect={(printId, printImageUrl) =>
+                            updateEntryPrint(entry.zoneId, printId, printImageUrl)
+                          }
+                        />
+                      )}
+                      <button
+                        onClick={() => removeEntry(entry.zoneId)}
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
-          <button
-            onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted"
-          >
-            Скасувати
-          </button>
-          <button
-            onClick={() => { onSave(local); onClose() }}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Зберегти
-          </button>
+        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+          <p className="text-xs text-muted-foreground">
+            {local.length === 0
+              ? "\u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043D\u0430 \u0437\u043E\u043D\u0443 \u0449\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438"
+              : `${local.length} \u0437\u043E\u043D${local.length === 1 ? "\u0430" : local.length < 5 ? "\u0438" : ""} \u043E\u0431\u0440\u0430\u043D\u043E`}
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted"
+            >
+              {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
+            </button>
+            <button
+              onClick={() => { onSave(local); onClose() }}
+              disabled={!isValid}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -154,7 +376,7 @@ export default function GeneratePage() {
   const [selectedBaseIds, setSelectedBaseIds] = useState<Set<string>>(new Set())
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set())
 
-  const [zoneSelections, setZoneSelections] = useState<Record<string, ZoneSelection>>({})
+  const [zoneSelections, setZoneSelections] = useState<Record<string, MultiZoneEntry[]>>({})
   const [zonePickerBase, setZonePickerBase] = useState<Base | null>(null)
   const [rejectedKeys, setRejectedKeys] = useState<Set<string>>(new Set())
 
@@ -297,52 +519,68 @@ export default function GeneratePage() {
     setSavedCount(null)
     try {
       const supabase = createClient()
-      
-      // Build products with zone information
-      const productsToInsert = activeCombinations.map(({ base, print }) => {
-        // Get zone selection for this base
-        const baseZoneSelection = zoneSelections[base.id] || {}
-        
-        // Find the first image with a selected zone (or the first image with zones)
-        let selectedImageId: number | null = null
-        let selectedZoneId: number | null = null
+      let savedTotal = 0
 
-        // First try to use explicit zone selection
-        for (const img of base.images) {
-          const zoneIdStr = baseZoneSelection[img.id]
-          if (zoneIdStr) {
-            selectedImageId = parseInt(img.id)
-            selectedZoneId = parseInt(zoneIdStr)
-            break
-          }
-        }
+      for (const { base, print } of activeCombinations) {
+        const entries = zoneSelections[base.id] || []
 
-        // If no explicit selection, use the first image with zones (preferring is_max zone)
-        if (!selectedImageId && !selectedZoneId) {
+        // Determine primary zone (first entry or fallback to is_max/first zone)
+        let primaryImageId: number | null = null
+        let primaryZoneId: number | null = null
+
+        if (entries.length > 0) {
+          primaryImageId = parseInt(entries[0].imageId)
+          primaryZoneId = parseInt(entries[0].zoneId)
+        } else {
+          // Fallback: first image with zones, prefer is_max
           for (const img of base.images) {
             if (img.zones.length > 0) {
-              selectedImageId = parseInt(img.id)
+              primaryImageId = parseInt(img.id)
               const maxZone = img.zones.find((z: Zone & { is_max?: boolean }) => z.is_max)
-              selectedZoneId = parseInt(maxZone ? maxZone.id : img.zones[0].id)
+              primaryZoneId = parseInt(maxZone ? maxZone.id : img.zones[0].id)
               break
             }
           }
         }
 
-        return {
-          name: `${base.name} + ${print.name}`,
-          base_id: parseInt(base.id),
-          print_id: parseInt(print.id),
-          base_image_id: selectedImageId,
-          zone_id: selectedZoneId,
-          price: (Number(base.price) || 0) + (Number(print.price) || 0),
-          is_active: true,
+        // Insert product and get back the id
+        const { data: inserted, error: insertErr } = await supabase
+          .from("products")
+          .insert({
+            name: `${base.name} + ${print.name}`,
+            base_id: parseInt(base.id),
+            print_id: parseInt(print.id),
+            base_image_id: primaryImageId,
+            zone_id: primaryZoneId,
+            price: (Number(base.price) || 0) + (Number(print.price) || 0),
+            is_active: true,
+          })
+          .select("id")
+          .single()
+
+        if (insertErr) throw insertErr
+
+        // Insert all zone placements
+        if (entries.length > 0 && inserted) {
+          const placements = entries.map((e) => ({
+            product_id: inserted.id,
+            zone_id: parseInt(e.zoneId),
+            print_id: e.printId ? parseInt(e.printId) : parseInt(print.id),
+            x: 50,
+            y: 50,
+            scale: 100,
+            is_mirrored: false,
+          }))
+          const { error: placementErr } = await supabase
+            .from("product_print_placements")
+            .insert(placements)
+          if (placementErr) throw placementErr
         }
-      })
-      
-      const { error } = await supabase.from("products").insert(productsToInsert)
-      if (error) throw error
-      setSavedCount(activeCombinations.length)
+
+        savedTotal++
+      }
+
+      setSavedCount(savedTotal)
       setSelectedBaseIds(new Set())
       setSelectedPrintIds(new Set())
       setRejectedKeys(new Set())
@@ -428,7 +666,7 @@ export default function GeneratePage() {
             {filteredBases.map((base) => {
               const isSelected = selectedBaseIds.has(base.id)
               const hasZones = base.images.some((img) => img.zones.length > 0)
-              const hasSelection = !!zoneSelections[base.id]
+              const hasSelection = (zoneSelections[base.id] || []).length > 0
               const totalZones = base.images.reduce((acc, img) => acc + img.zones.length, 0)
               return (
                 <div
@@ -470,7 +708,7 @@ export default function GeneratePage() {
                           hasSelection ? "bg-primary/10 text-primary hover:bg-primary/20" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
                         )}
                       >
-                        {hasSelection ? "Зони ✓" : "Зони"}
+                        {hasSelection ? `\u0417\u043E\u043D\u0438 (${zoneSelections[base.id].length}) \u2713` : "\u0417\u043E\u043D\u0438"}
                       </button>
                     )}
                   </div>
@@ -570,7 +808,7 @@ export default function GeneratePage() {
                   key={key}
                   base={base}
                   print={print}
-                  zoneSelection={zoneSelections[base.id] || {}}
+                  multiZoneSelection={zoneSelections[base.id] || []}
                   onReject={() => rejectCombo(key)}
                 />
               ))}
@@ -583,8 +821,9 @@ export default function GeneratePage() {
       {zonePickerBase && (
         <ZonePickerModal
           base={zonePickerBase}
-          zoneSelection={zoneSelections[zonePickerBase.id] || {}}
-          onSave={(sel) => setZoneSelections((prev) => ({ ...prev, [zonePickerBase.id]: sel }))}
+          entries={zoneSelections[zonePickerBase.id] || []}
+          prints={prints}
+          onSave={(entries) => setZoneSelections((prev) => ({ ...prev, [zonePickerBase.id]: entries }))}
           onClose={() => setZonePickerBase(null)}
         />
       )}

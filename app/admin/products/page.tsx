@@ -6,7 +6,7 @@ import { Plus, Search, Package, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { ProductFormDialog } from "@/components/admin/products/product-form-dialog"
 import { DeleteConfirmDialog } from "@/components/admin/delete-confirm-dialog"
-import { CompositeCard, type CompositeBase, type BaseImage, type Zone } from "@/components/admin/composite-card"
+import { CompositeCard, type CompositeBase, type BaseImage, type Zone, type MultiZoneEntry } from "@/components/admin/composite-card"
 import { ProductConstructorModal, type PrintConfig } from "@/components/admin/product-constructor-modal"
 import { decodeLabel } from "@/app/admin/parameters/actions"
 
@@ -23,6 +23,7 @@ interface RawProduct {
 
 interface PrintPlacement {
   zone_id: string
+  print_id?: string
   x: number
   y: number
   scale: number
@@ -39,6 +40,7 @@ interface ProductWithImages {
   placements: Record<string, PrintPlacement>
   base: CompositeBase | null
   print: { id: string; name: string; image_url: string | null } | null
+  multiZoneSelection?: MultiZoneEntry[]
 }
 
 interface BaseForForm {
@@ -81,13 +83,14 @@ export default function ProductsPage() {
         // Fetch placements for this product
         const { data: placementsData } = await supabase
           .from("product_print_placements")
-          .select("zone_id, x, y, scale, is_mirrored")
+          .select("zone_id, print_id, x, y, scale, is_mirrored")
           .eq("product_id", p.id)
         
         const placements: Record<string, PrintPlacement> = {}
         ;(placementsData || []).forEach((pl) => {
           placements[String(pl.zone_id)] = {
             zone_id: String(pl.zone_id),
+            print_id: pl.print_id ? String(pl.print_id) : undefined,
             x: Number(pl.x),
             y: Number(pl.y),
             scale: Number(pl.scale),
@@ -131,6 +134,33 @@ export default function ProductsPage() {
         return { ...p, base, print: p.print_designs, placements }
       })
     )
+
+    // Build print image lookup for multi-zone rendering
+    const printImageMap: Record<string, string> = {}
+    for (const p of (printsData || [])) {
+      if (p.image_url) printImageMap[String(p.id)] = p.image_url
+    }
+
+    // Construct multiZoneSelection per product
+    for (const product of enriched) {
+      if (!product.base || !product.placements) continue
+      const entries: MultiZoneEntry[] = []
+      for (const img of product.base.images) {
+        for (const zone of img.zones) {
+          const placement = product.placements[zone.id]
+          if (!placement) continue
+          const entry: MultiZoneEntry = { imageId: img.id, zoneId: zone.id }
+          if (placement.print_id && placement.print_id !== product.print?.id) {
+            entry.printId = placement.print_id
+            entry.printImageUrl = printImageMap[placement.print_id]
+          }
+          entries.push(entry)
+        }
+      }
+      if (entries.length > 0) {
+        product.multiZoneSelection = entries
+      }
+    }
 
     setProducts(enriched)
     setBases((basesData || []) as BaseForForm[])
@@ -218,6 +248,7 @@ export default function ProductsPage() {
                   isActive={product.is_active}
                   printConfig={product.print_config}
                   placements={product.placements}
+                  multiZoneSelection={product.multiZoneSelection}
                   onClick={() => setConstructorProduct(product)}
                   onDelete={() => setDeletingId(product.id)}
                 />
