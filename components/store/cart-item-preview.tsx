@@ -40,48 +40,58 @@ export function CartItemPreview({ item, size = 200, className = "" }: CartItemPr
 
       if (!item.printImageUrl || !item.zones || item.zones.length === 0) return
 
-      const zone = item.zones[0]
-      const zx = ox + (zone.x / 100) * w
-      const zy = oy + (zone.y / 100) * h
-      const zw = (zone.width / 100) * w
-      const zh = (zone.height / 100) * h
+      // Render prints in all zones that have placements, or fall back to first zone
+      const itemPlacements = item.placements ?? {}
+      const hasAnyPlacement = Object.keys(itemPlacements).length > 0
+      const zonesToRender = hasAnyPlacement
+        ? item.zones.filter(z => itemPlacements[z.id])
+        : [item.zones[0]]
 
-      const printImg = new Image()
-      printImg.crossOrigin = "anonymous"
-      printImg.src = item.printImageUrl
+      for (const zone of zonesToRender) {
+        const placement = itemPlacements[zone.id]
+        const url = placement?.printImageUrl ?? item.printImageUrl!
 
-      printImg.onload = () => {
-        const placement = item.placements?.[zone.id]
-        if (placement) {
-          const px = placement.x / 100
-          const py = placement.y / 100
-          const ps = placement.scale / 100
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let basePw: number, basePh: number
-          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
-          else { basePh = zh; basePw = zh * printRatio }
-          const pw = basePw * ps
-          const ph = basePh * ps
-          const finalX = zx + px * zw - pw / 2
-          const finalY = zy + py * zh - ph / 2
+        const zx = ox + (zone.x / 100) * w
+        const zy = oy + (zone.y / 100) * h
+        const zw = (zone.width / 100) * w
+        const zh = (zone.height / 100) * h
 
-          ctx.save()
-          if (placement.is_mirrored) {
-            ctx.translate(finalX + pw / 2, 0)
-            ctx.scale(-1, 1)
-            ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
+        const printImg = new Image()
+        printImg.crossOrigin = "anonymous"
+        printImg.src = url
+
+        printImg.onload = () => {
+          if (placement) {
+            const px = placement.x / 100
+            const py = placement.y / 100
+            const ps = placement.scale / 100
+            const printRatio = printImg.naturalWidth / printImg.naturalHeight
+            const zoneRatio = zw / zh
+            let basePw: number, basePh: number
+            if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
+            else { basePh = zh; basePw = zh * printRatio }
+            const pw = basePw * ps
+            const ph = basePh * ps
+            const finalX = zx + px * zw - pw / 2
+            const finalY = zy + py * zh - ph / 2
+
+            ctx.save()
+            if (placement.is_mirrored) {
+              ctx.translate(finalX + pw / 2, 0)
+              ctx.scale(-1, 1)
+              ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
+            } else {
+              ctx.drawImage(printImg, finalX, finalY, pw, ph)
+            }
+            ctx.restore()
           } else {
-            ctx.drawImage(printImg, finalX, finalY, pw, ph)
+            const printRatio = printImg.naturalWidth / printImg.naturalHeight
+            const zoneRatio = zw / zh
+            let pw: number, ph: number
+            if (printRatio > zoneRatio) { pw = zw; ph = zw / printRatio }
+            else { ph = zh; pw = zh * printRatio }
+            ctx.drawImage(printImg, zx + (zw - pw) / 2, zy + (zh - ph) / 2, pw, ph)
           }
-          ctx.restore()
-        } else {
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let pw: number, ph: number
-          if (printRatio > zoneRatio) { pw = zw; ph = zw / printRatio }
-          else { ph = zh; pw = zh * printRatio }
-          ctx.drawImage(printImg, zx + (zw - pw) / 2, zy + (zh - ph) / 2, pw, ph)
         }
       }
     }

@@ -18,7 +18,7 @@ export interface CartItem {
   // Product composite preview data (base + print)
   printImageUrl?: string | null
   zones?: { id: string; x: number; y: number; width: number; height: number }[]
-  placements?: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }>
+  placements?: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
   // Custom design metadata
   colorName?: string
   sizeName?: string

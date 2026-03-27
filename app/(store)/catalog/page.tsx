@@ -153,7 +153,7 @@ export default async function CatalogPage({
     productIds.length > 0
       ? supabase
           .from("product_print_placements")
-          .select("product_id, zone_id, x, y, scale, is_mirrored")
+          .select("product_id, zone_id, print_id, x, y, scale, is_mirrored")
           .in("product_id", productIds)
       : Promise.resolve({ data: [] }),
   ])
@@ -189,9 +189,9 @@ export default async function CatalogPage({
   }
 
   const allPlacements = (placementsRes.data ?? []) as Array<{
-    product_id: number; zone_id: number; x: number; y: number; scale: number; is_mirrored: boolean
+    product_id: number; zone_id: number; print_id: number | null; x: number; y: number; scale: number; is_mirrored: boolean
   }>
-  const placementsByProduct = new Map<number, Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }>>()
+  const placementsByProduct = new Map<number, Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; print_id: number | null }>>()
   for (const pl of allPlacements) {
     const map = placementsByProduct.get(pl.product_id) ?? {}
     map[String(pl.zone_id)] = {
@@ -199,8 +199,32 @@ export default async function CatalogPage({
       y: Number(pl.y),
       scale: Number(pl.scale),
       is_mirrored: pl.is_mirrored ?? false,
+      print_id: pl.print_id ?? null,
     }
     placementsByProduct.set(pl.product_id, map)
+  }
+
+  // Resolve secondary print image URLs
+  const secondaryPrintIds = new Set<number>()
+  for (const p of products) {
+    const pls = placementsByProduct.get(p.id)
+    if (!pls) continue
+    for (const pl of Object.values(pls)) {
+      if (pl.print_id && pl.print_id !== p.print_id) {
+        secondaryPrintIds.add(pl.print_id)
+      }
+    }
+  }
+
+  const secondaryPrintUrls = new Map<number, string>()
+  if (secondaryPrintIds.size > 0) {
+    const { data: secondaryPrints } = await supabase
+      .from("print_designs")
+      .select("id, image_url")
+      .in("id", [...secondaryPrintIds])
+    for (const sp of (secondaryPrints ?? [])) {
+      if (sp.image_url) secondaryPrintUrls.set(sp.id as number, sp.image_url as string)
+    }
   }
 
   const enrichedProducts = products.map((p) => {
@@ -220,7 +244,19 @@ export default async function CatalogPage({
         width: Number(z.width),
         height: Number(z.height),
       })),
-      placements: placementsByProduct.get(p.id) ?? {},
+      placements: (() => {
+        const raw = placementsByProduct.get(p.id) ?? {}
+        const resolved: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}
+        for (const [zoneId, pl] of Object.entries(raw)) {
+          resolved[zoneId] = {
+            x: pl.x, y: pl.y, scale: pl.scale, is_mirrored: pl.is_mirrored,
+            ...(pl.print_id && pl.print_id !== p.print_id && secondaryPrintUrls.has(pl.print_id)
+              ? { printImageUrl: secondaryPrintUrls.get(pl.print_id)! }
+              : {}),
+          }
+        }
+        return resolved
+      })(),
     }
   })
 

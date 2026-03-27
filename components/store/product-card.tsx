@@ -12,7 +12,7 @@ interface ProductCardProps {
     baseImageUrl: string | null
     printImageUrl: string | null
     zones: { id: string; x: number; y: number; width: number; height: number }[]
-    placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }>
+    placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
   }
 }
 
@@ -49,48 +49,57 @@ export function ProductCard({ product }: ProductCardProps) {
 
       if (!printUrl || zones.length === 0) return
 
-      const zone = zones[0]
-      const zx = ox + (zone.x / 100) * w
-      const zy = oy + (zone.y / 100) * h
-      const zw = (zone.width / 100) * w
-      const zh = (zone.height / 100) * h
+      // Render all zones that have placements, or fall back to first zone
+      const hasAnyPlacement = Object.keys(placements).length > 0
+      const zonesToRender = hasAnyPlacement
+        ? zones.filter(z => placements[z.id])
+        : [zones[0]]
 
-      const printImg = new Image()
-      printImg.crossOrigin = "anonymous"
-      printImg.src = printUrl
-
-      printImg.onload = () => {
+      for (const zone of zonesToRender) {
         const placement = placements[zone.id]
-        if (placement) {
-          const px = placement.x / 100
-          const py = placement.y / 100
-          const ps = placement.scale / 100
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let basePw: number, basePh: number
-          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
-          else { basePh = zh; basePw = zh * printRatio }
-          const pw = basePw * ps
-          const ph = basePh * ps
-          const finalX = zx + px * zw - pw / 2
-          const finalY = zy + py * zh - ph / 2
+        const url = placement?.printImageUrl ?? printUrl
 
-          ctx.save()
-          if (placement.is_mirrored) {
-            ctx.translate(finalX + pw / 2, 0)
-            ctx.scale(-1, 1)
-            ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
+        const zx = ox + (zone.x / 100) * w
+        const zy = oy + (zone.y / 100) * h
+        const zw = (zone.width / 100) * w
+        const zh = (zone.height / 100) * h
+
+        const printImg = new Image()
+        printImg.crossOrigin = "anonymous"
+        printImg.src = url
+
+        printImg.onload = () => {
+          if (placement) {
+            const px = placement.x / 100
+            const py = placement.y / 100
+            const ps = placement.scale / 100
+            const printRatio = printImg.naturalWidth / printImg.naturalHeight
+            const zoneRatio = zw / zh
+            let basePw: number, basePh: number
+            if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
+            else { basePh = zh; basePw = zh * printRatio }
+            const pw = basePw * ps
+            const ph = basePh * ps
+            const finalX = zx + px * zw - pw / 2
+            const finalY = zy + py * zh - ph / 2
+
+            ctx.save()
+            if (placement.is_mirrored) {
+              ctx.translate(finalX + pw / 2, 0)
+              ctx.scale(-1, 1)
+              ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
+            } else {
+              ctx.drawImage(printImg, finalX, finalY, pw, ph)
+            }
+            ctx.restore()
           } else {
-            ctx.drawImage(printImg, finalX, finalY, pw, ph)
+            const printRatio = printImg.naturalWidth / printImg.naturalHeight
+            const zoneRatio = zw / zh
+            let pw: number, ph: number
+            if (printRatio > zoneRatio) { pw = zw; ph = zw / printRatio }
+            else { ph = zh; pw = zh * printRatio }
+            ctx.drawImage(printImg, zx + (zw - pw) / 2, zy + (zh - ph) / 2, pw, ph)
           }
-          ctx.restore()
-        } else {
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let pw: number, ph: number
-          if (printRatio > zoneRatio) { pw = zw; ph = zw / printRatio }
-          else { ph = zh; pw = zh * printRatio }
-          ctx.drawImage(printImg, zx + (zw - pw) / 2, zy + (zh - ph) / 2, pw, ph)
         }
       }
     }

@@ -68,7 +68,7 @@ export default async function ProductDetailPage({
       .order("sort_order"),
     supabase
       .from("product_print_placements")
-      .select("zone_id, x, y, scale, is_mirrored")
+      .select("zone_id, print_id, x, y, scale, is_mirrored")
       .eq("product_id", productId),
   ])
 
@@ -108,14 +108,39 @@ export default async function ProductDetailPage({
     id: number; base_image_id: number; x: number; y: number; width: number; height: number
   }>
 
-  // Build placements map
-  const placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }> = {}
-  for (const pl of (placementsRes.data ?? [])) {
+  // Build placements map with secondary print resolution
+  const rawPlacements = (placementsRes.data ?? []) as Array<{
+    zone_id: number; print_id: number | null; x: number; y: number; scale: number; is_mirrored: boolean
+  }>
+
+  const secondaryPrintIds = new Set<number>()
+  for (const pl of rawPlacements) {
+    if (pl.print_id && pl.print_id !== (product.print_id as number)) {
+      secondaryPrintIds.add(pl.print_id)
+    }
+  }
+
+  const secondaryPrintUrls = new Map<number, string>()
+  if (secondaryPrintIds.size > 0) {
+    const { data: secondaryPrints } = await supabase
+      .from("print_designs")
+      .select("id, image_url")
+      .in("id", [...secondaryPrintIds])
+    for (const sp of (secondaryPrints ?? [])) {
+      if (sp.image_url) secondaryPrintUrls.set(sp.id as number, sp.image_url as string)
+    }
+  }
+
+  const placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}
+  for (const pl of rawPlacements) {
     placements[String(pl.zone_id)] = {
       x: Number(pl.x),
       y: Number(pl.y),
       scale: Number(pl.scale),
       is_mirrored: pl.is_mirrored ?? false,
+      ...(pl.print_id && pl.print_id !== (product.print_id as number) && secondaryPrintUrls.has(pl.print_id)
+        ? { printImageUrl: secondaryPrintUrls.get(pl.print_id)! }
+        : {}),
     }
   }
 
