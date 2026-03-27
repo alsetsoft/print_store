@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3 } from "lucide-react"
+import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3, Star, Link2 } from "lucide-react"
 import { createBase, updateBase, decodeLabel } from "@/app/admin/parameters/actions"
 import { createClient } from "@/lib/supabase/client"
 import { ZoneEditorModal, Zone } from "./zone-editor-modal"
@@ -53,6 +53,25 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
   const [editingColorId, setEditingColorId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+
+  const primaryColorId = selectedColorIds[0] ?? null
+
+  const syncAllZonesFromPrimary = useCallback((imgs: Record<number, UploadedImage[]>, colorIds: number[]): Record<number, UploadedImage[]> => {
+    const primary = colorIds[0]
+    if (primary == null) return imgs
+    const primaryImages = imgs[primary] || []
+    if (primaryImages.length === 0) return imgs
+    const updated = { ...imgs }
+    for (let c = 1; c < colorIds.length; c++) {
+      const colorId = colorIds[c]
+      const colorImages = updated[colorId] || []
+      updated[colorId] = colorImages.map((img, idx) => {
+        const sourceZones = primaryImages[idx]?.zones || []
+        return { ...img, zones: sourceZones }
+      })
+    }
+    return updated
+  }, [])
 
   // Use ref for immediate sync (state updates are async and cause race conditions)
   const skipSubcategoryResetRef = useRef(false)
@@ -152,7 +171,17 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
               imgByColor[colorId].push(uploadedImg)
             })
           )
-          setImagesByColor(imgByColor)
+          // After loading, sync zones from primary color to all others
+          const { data: colorData } = await supabase
+            .from("base_colors")
+            .select("color_id")
+            .eq("base_id", item.id)
+          const loadedColorIds = (colorData || []).map((r: { color_id: number }) => r.color_id)
+          if (loadedColorIds.length > 1) {
+            setImagesByColor(syncAllZonesFromPrimary(imgByColor, loadedColorIds))
+          } else {
+            setImagesByColor(imgByColor)
+          }
         } else if (item.image_url) {
           // Fallback to single image_url for old records
           const raw = item.image_url as string
@@ -220,19 +249,35 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
 
     // Upload each file concurrently and update each placeholder individually
     await Promise.all(
-      placeholders.map(async (placeholder) => {
+      placeholders.map(async (placeholder, index) => {
         const remoteUrl = await uploadFileToSupabase(placeholder.file!)
-        setImagesByColor((prev) => ({
-          ...prev,
-          [colorId]: (prev[colorId] || []).map((img) =>
-            img.id === placeholder.id
-              ? { ...img, url: remoteUrl || "", uploading: false }
-              : img
-          ),
-        }))
+        setImagesByColor((prev) => {
+          const updated = {
+            ...prev,
+            [colorId]: (prev[colorId] || []).map((img) =>
+              img.id === placeholder.id
+                ? { ...img, url: remoteUrl || "", uploading: false }
+                : img
+            ),
+          }
+          // If uploading to a non-primary color, copy zones from primary at same index
+          const primary = selectedColorIds[0]
+          if (primary != null && colorId !== primary) {
+            const primaryImages = updated[primary] || []
+            const imgIndex = currentCount + index
+            if (primaryImages[imgIndex]?.zones?.length) {
+              updated[colorId] = (updated[colorId] || []).map((img) =>
+                img.id === placeholder.id
+                  ? { ...img, zones: primaryImages[imgIndex].zones }
+                  : img
+              )
+            }
+          }
+          return updated
+        })
       })
     )
-  }, [uploadFileToSupabase, imagesByColor])
+  }, [uploadFileToSupabase, imagesByColor, selectedColorIds])
 
   const handleRemoveImage = (colorId: number, id: string) => {
     setImagesByColor((prev) => {
@@ -263,12 +308,30 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
 
   const handleZonesChange = (newZones: Zone[]) => {
     if (!editingImageId || editingColorId === null) return
-    setImagesByColor((prev) => ({
-      ...prev,
-      [editingColorId]: (prev[editingColorId] || []).map((img) =>
-        img.id === editingImageId ? { ...img, zones: newZones } : img
-      ),
-    }))
+    setImagesByColor((prev) => {
+      // Update zones on the edited image
+      const editingImages = prev[editingColorId] || []
+      const editedIndex = editingImages.findIndex((img) => img.id === editingImageId)
+      const updated = {
+        ...prev,
+        [editingColorId]: editingImages.map((img) =>
+          img.id === editingImageId ? { ...img, zones: newZones } : img
+        ),
+      }
+      // If editing primary color, propagate zones to same index in all other colors
+      if (editingColorId === primaryColorId && editedIndex >= 0) {
+        for (let c = 1; c < selectedColorIds.length; c++) {
+          const colorId = selectedColorIds[c]
+          const colorImages = updated[colorId] || []
+          if (colorImages[editedIndex]) {
+            updated[colorId] = colorImages.map((img, idx) =>
+              idx === editedIndex ? { ...img, zones: newZones } : img
+            )
+          }
+        }
+      }
+      return updated
+    })
   }
 
   const editingImage = editingColorId !== null 
@@ -287,17 +350,25 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
     if (sizesProp && sizesProp.length > 0 && selectedSizeIds.length === 0) errs.sizeIds = "Оберіть хоча б один розмір"
     if (!sku.trim()) errs.sku = "SKU обовязковий"
     if (!price || parseFloat(price) < 0) errs.price = "Введіть коректну ціну"
-    // Check each selected color has at least one image
-    let hasAnyImage = false
-    let hasImageWithoutZones = false
-    for (const colorId of selectedColorIds) {
-      const colorImages = (imagesByColor[colorId] || []).filter((i) => !i.uploading && i.url)
-      if (colorImages.length > 0) hasAnyImage = true
-      if (colorImages.some((i) => i.zones.length === 0)) hasImageWithoutZones = true
+    // Check primary color has at least one image with zones
+    const primary = selectedColorIds[0]
+    const primaryImages = primary != null ? (imagesByColor[primary] || []).filter((i) => !i.uploading && i.url) : []
+    if (primaryImages.length === 0) {
+      errs.images = "\u0414\u043E\u0434\u0430\u0439\u0442\u0435 \u0445\u043E\u0447\u0430 \u0431 \u043E\u0434\u043D\u0435 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u043D\u044F \u0434\u043B\u044F \u043A\u043E\u0436\u043D\u043E\u0433\u043E \u043A\u043E\u043B\u044C\u043E\u0440\u0443"
     }
-    if (!hasAnyImage) errs.images = "Додайте хоча б одне зображення для кожного кольору"
-    if (hasImageWithoutZones) {
-      errs.zones = "Кожне зображення повинно мати хоча б одну зону для принта"
+    if (primaryImages.some((i) => i.zones.length === 0)) {
+      errs.zones = "\u041A\u043E\u0436\u043D\u0435 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u043D\u044F \u043F\u043E\u0432\u0438\u043D\u043D\u043E \u043C\u0430\u0442\u0438 \u0445\u043E\u0447\u0430 \u0431 \u043E\u0434\u043D\u0443 \u0437\u043E\u043D\u0443 \u0434\u043B\u044F \u043F\u0440\u0438\u043D\u0442\u0430"
+    }
+    // Enforce same image count across all colors
+    if (primary != null && selectedColorIds.length > 1) {
+      const expectedCount = primaryImages.length
+      for (let c = 1; c < selectedColorIds.length; c++) {
+        const colorImages = (imagesByColor[selectedColorIds[c]] || []).filter((i) => !i.uploading && i.url)
+        if (colorImages.length !== expectedCount) {
+          errs.images = `\u0412\u0441\u0456 \u043A\u043E\u043B\u044C\u043E\u0440\u0438 \u043F\u043E\u0432\u0438\u043D\u043D\u0456 \u043C\u0430\u0442\u0438 \u043E\u0434\u043D\u0430\u043A\u043E\u0432\u0443 \u043A\u0456\u043B\u044C\u043A\u0456\u0441\u0442\u044C \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C (${expectedCount})`
+          break
+        }
+      }
     }
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -580,6 +651,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                   {selectedColorIds.map((colorId) => {
                     const color = colorsProp?.find((c) => c.id === colorId)
                     const isActive = activeColorTab === colorId
+                    const isPrimary = colorId === primaryColorId
                     const colorImages = imagesByColor[colorId] || []
                     const hasImages = colorImages.some((i) => !i.uploading && i.url)
                     return (
@@ -600,6 +672,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                           />
                         )}
                         {color?.name || `Колір ${colorId}`}
+                        {isPrimary && <Star className="h-3 w-3 text-amber-500" />}
+                        {!isPrimary && <Link2 className="h-3 w-3 text-muted-foreground" />}
                         {hasImages && (
                           <span className="ml-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[10px] text-primary">
                             {colorImages.filter((i) => !i.uploading && i.url).length}
@@ -611,8 +685,16 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                 </div>
 
                 {/* Images for active color */}
-                {activeColorTab !== null && (
+                {activeColorTab !== null && (() => {
+                  const isActiveColorPrimary = activeColorTab === primaryColorId
+                  return (
                   <div>
+                    {!isActiveColorPrimary && (
+                      <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                        <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{"\u0417\u043E\u043D\u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u043D\u043E \u043A\u043E\u043F\u0456\u044E\u044E\u0442\u044C\u0441\u044F \u0437 \u043F\u0435\u0440\u0448\u043E\u0433\u043E \u043A\u043E\u043B\u044C\u043E\u0440\u0443. \u0420\u0435\u0434\u0430\u0433\u0443\u0439\u0442\u0435 \u0437\u043E\u043D\u0438 \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u0446\u0456 \u043E\u0441\u043D\u043E\u0432\u043D\u043E\u0433\u043E \u043A\u043E\u043B\u044C\u043E\u0440\u0443."}</span>
+                      </div>
+                    )}
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -628,7 +710,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                       suppressHydrationWarning
                     >
                       <Upload className="h-4 w-4" />
-                      {"Завантажити зображення"}
+                      {"\u0417\u0430\u0432\u0430\u043D\u0442\u0430\u0436\u0438\u0442\u0438 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u043D\u044F"}
                     </button>
 
                     {(imagesByColor[activeColorTab] || []).length > 0 && (
@@ -644,14 +726,14 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                             <div key={img.id} className="flex flex-col">
                               <div
                                 className={`group relative aspect-square overflow-hidden rounded-lg border-2 bg-muted transition-all ${
-                                  needsZones && errors.zones
+                                  needsZones && errors.zones && isActiveColorPrimary
                                     ? "border-destructive"
                                     : hasZones
                                     ? "border-primary/50"
                                     : "border-border"
-                                } ${!img.uploading && displaySrc ? "cursor-pointer hover:border-primary" : ""}`}
+                                } ${!img.uploading && displaySrc && isActiveColorPrimary ? "cursor-pointer hover:border-primary" : ""}`}
                                 onClick={() => {
-                                  if (!img.uploading && displaySrc) {
+                                  if (!img.uploading && displaySrc && isActiveColorPrimary) {
                                     handleOpenZoneEditor(activeColorTab, img.id)
                                   }
                                 }}
@@ -680,12 +762,22 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                                         <Loader2 className="h-5 w-5 animate-spin text-primary" />
                                       </div>
                                     )}
-                                    {!img.uploading && (
+                                    {!img.uploading && isActiveColorPrimary && (
                                       <div className="absolute inset-0 flex items-center justify-center bg-foreground/60 opacity-0 transition-opacity group-hover:opacity-100">
                                         <div className="flex flex-col items-center text-white">
                                           <Grid3X3 className="h-5 w-5" />
                                           <span className="mt-1 text-xs font-medium">
-                                            {hasZones ? "Редагувати" : "Додати зони"}
+                                            {hasZones ? "\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438" : "\u0414\u043E\u0434\u0430\u0442\u0438 \u0437\u043E\u043D\u0438"}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {!img.uploading && !isActiveColorPrimary && (
+                                      <div className="absolute inset-0 flex items-center justify-center bg-foreground/60 opacity-0 transition-opacity group-hover:opacity-100">
+                                        <div className="flex flex-col items-center text-white">
+                                          <Link2 className="h-5 w-5" />
+                                          <span className="mt-1 text-xs font-medium">
+                                            {"\u0417\u043E\u043D\u0438 \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0456\u0437\u043E\u0432\u0430\u043D\u0456"}
                                           </span>
                                         </div>
                                       </div>
@@ -728,7 +820,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                       </div>
                     )}
                   </div>
-                )}
+                  )
+                })()}
                 {errors.zones && <p className="mt-1 text-xs text-destructive">{errors.zones}</p>}
                 {errors.images && <p className="mt-1 text-xs text-destructive" suppressHydrationWarning>{errors.images}</p>}
               </div>
