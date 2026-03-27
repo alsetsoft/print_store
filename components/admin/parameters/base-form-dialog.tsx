@@ -66,8 +66,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       const colorId = colorIds[c]
       const colorImages = updated[colorId] || []
       updated[colorId] = colorImages.map((img, idx) => {
-        const sourceZones = primaryImages[idx]?.zones || []
-        return { ...img, zones: sourceZones }
+        const source = primaryImages[idx]
+        return { ...img, zones: source?.zones || [], label: source?.label ?? img.label }
       })
     }
     return updated
@@ -298,12 +298,29 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
   }
 
   const handleLabelChange = (colorId: number, imageId: string, newLabel: string) => {
-    setImagesByColor((prev) => ({
-      ...prev,
-      [colorId]: (prev[colorId] || []).map((img) =>
-        img.id === imageId ? { ...img, label: newLabel } : img
-      ),
-    }))
+    setImagesByColor((prev) => {
+      const editingImages = prev[colorId] || []
+      const editedIndex = editingImages.findIndex((img) => img.id === imageId)
+      const updated = {
+        ...prev,
+        [colorId]: editingImages.map((img) =>
+          img.id === imageId ? { ...img, label: newLabel } : img
+        ),
+      }
+      // If editing primary color, propagate label to same index in all other colors
+      if (colorId === primaryColorId && editedIndex >= 0) {
+        for (let c = 1; c < selectedColorIds.length; c++) {
+          const cId = selectedColorIds[c]
+          const colorImages = updated[cId] || []
+          if (colorImages[editedIndex]) {
+            updated[cId] = colorImages.map((img, idx) =>
+              idx === editedIndex ? { ...img, label: newLabel } : img
+            )
+          }
+        }
+      }
+      return updated
+    })
   }
 
   const handleZonesChange = (newZones: Zone[]) => {
@@ -811,7 +828,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                                 value={String(img.label ?? "")}
                                 onChange={(e) => handleLabelChange(activeColorTab, img.id, e.target.value)}
                                 placeholder="Назва"
-                                className="mt-1.5 w-full rounded border border-input bg-background px-2 py-1 text-center text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                disabled={!isActiveColorPrimary}
+                                className={`mt-1.5 w-full rounded border border-input bg-background px-2 py-1 text-center text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${!isActiveColorPrimary ? "cursor-not-allowed opacity-50" : ""}`}
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </div>
