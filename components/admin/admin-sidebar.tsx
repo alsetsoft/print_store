@@ -1,21 +1,23 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { 
-  LayoutGrid, 
-  ShoppingCart, 
-  Layers, 
-  Palette, 
+import { usePathname, useRouter } from "next/navigation"
+import {
+  LayoutGrid,
+  ShoppingCart,
+  Layers,
+  Palette,
   Package,
   Settings,
   Home,
   ShoppingBag,
   PenTool,
   Wand2,
-  FolderTree
+  FolderTree,
+  LogOut
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createClient } from "@/lib/supabase/client"
 
 // All Ukrainian strings as Unicode escapes to prevent SSR byte corruption
 const T = {
@@ -30,6 +32,7 @@ const T = {
   constructor:   "\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440",
   generate:      "\u0413\u0435\u043d\u0435\u0440\u0443\u0432\u0430\u0442\u0438\u00a0\u0442\u043e\u0432\u0430\u0440",
   backToShop:    "\u041f\u043e\u0432\u0435\u0440\u043d\u0443\u0442\u0438\u0441\u044c\u00a0\u0434\u043e\u00a0\u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0443",
+  logout:        "\u0412\u0438\u0439\u0442\u0438",
   overview:      "\u041e\u0433\u043b\u044f\u0434",
   orders:        "\u0417\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f",
   groups:        "\u0413\u0440\u0443\u043f\u0438",
@@ -49,6 +52,14 @@ const navigation = [
 
 export function AdminSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push("/admin/login")
+    router.refresh()
+  }
 
   return (
     <aside className="flex w-64 flex-col border-r border-border bg-card">
@@ -114,7 +125,7 @@ export function AdminSidebar() {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-4 space-y-2">
         <Link
           href="/"
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
@@ -123,6 +134,14 @@ export function AdminSidebar() {
           <Home className="h-4 w-4" />
           <span suppressHydrationWarning>{T.backToShop}</span>
         </Link>
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          suppressHydrationWarning
+        >
+          <LogOut className="h-4 w-4" />
+          <span suppressHydrationWarning>{T.logout}</span>
+        </button>
       </div>
     </aside>
   )
