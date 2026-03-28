@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, ShoppingCart } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
 
 export function CartPageClient() {
+  const router = useRouter()
   const { items, totalItems, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
 
   if (items.length === 0) {
@@ -188,15 +190,12 @@ export function CartPageClient() {
 
               {/* Checkout button */}
               <button
-                disabled
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-70"
+                onClick={() => router.push("/checkout")}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
               >
                 <ShoppingCart className="size-4" />
                 {"\u041e\u0444\u043e\u0440\u043c\u0438\u0442\u0438 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f"} ({totalPrice} {"\u0433\u0440\u043d"})
               </button>
-              <p className="mt-2 text-center text-[10px] text-muted-foreground">
-                {"\u041e\u0444\u043e\u0440\u043c\u043b\u0435\u043d\u043d\u044f \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f \u0441\u043a\u043e\u0440\u043e \u0431\u0443\u0434\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0435"}
-              </p>
             </div>
           </div>
         </div>
