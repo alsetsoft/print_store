@@ -1,16 +1,20 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { searchCities as npSearchCities, getWarehouses as npGetWarehouses } from "@/lib/nova-poshta"
+import { getRegions, searchCities, getWarehouses } from "@/lib/nova-poshta"
 import { generateLiqPayData } from "@/lib/liqpay"
 import { headers } from "next/headers"
 
-export async function searchNovaPoshtaCities(query: string) {
-  return npSearchCities(query)
+export async function getNovaPoshtaRegions() {
+  return getRegions()
 }
 
-export async function getNovaPoshtaWarehouses(cityRef: string) {
-  return npGetWarehouses(cityRef)
+export async function searchNovaPoshtaCities(query: string) {
+  return searchCities(query)
+}
+
+export async function getNovaPoshtaWarehouses(settlementId: number) {
+  return getWarehouses(settlementId)
 }
 
 interface OrderFormData {

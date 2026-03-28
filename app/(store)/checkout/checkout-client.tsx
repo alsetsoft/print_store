@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -25,8 +24,10 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { cn } from "@/lib/utils"
+import type { NPRegion, NPCity, NPWarehouse } from "@/lib/nova-poshta"
 
 import {
+  getNovaPoshtaRegions,
   searchNovaPoshtaCities,
   getNovaPoshtaWarehouses,
   createOrder,
@@ -44,39 +45,33 @@ const checkoutSchema = z.object({
 
 type CheckoutFormValues = z.infer<typeof checkoutSchema>
 
-interface City {
-  ref: string
-  description: string
-  region: string
-}
-
-interface Warehouse {
-  ref: string
-  description: string
-}
-
 // ── Component ──
 
 export function CheckoutClient() {
-  const router = useRouter()
   const { items, totalPrice, clearCart } = useCart()
 
-  // Nova Poshta state
-  const [cities, setCities] = useState<City[]>([])
+  // Region state
+  const [regions, setRegions] = useState<NPRegion[]>([])
+  const [selectedRegion, setSelectedRegion] = useState<NPRegion | null>(null)
+  const [regionOpen, setRegionOpen] = useState(false)
+
+  // City state (search-based, filtered by region)
+  const [cities, setCities] = useState<NPCity[]>([])
   const [citySearch, setCitySearch] = useState("")
-  const [selectedCity, setSelectedCity] = useState<City | null>(null)
+  const [selectedCity, setSelectedCity] = useState<NPCity | null>(null)
   const [cityOpen, setCityOpen] = useState(false)
   const [citiesLoading, setCitiesLoading] = useState(false)
 
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
-  const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
+  // Warehouse state
+  const [warehouses, setWarehouses] = useState<NPWarehouse[]>([])
+  const [selectedWarehouse, setSelectedWarehouse] = useState<NPWarehouse | null>(null)
   const [warehouseOpen, setWarehouseOpen] = useState(false)
   const [warehousesLoading, setWarehousesLoading] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
 
-  // Hidden form ref for LiqPay redirect
   const liqpayFormRef = useRef<HTMLFormElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const {
     register,
@@ -87,9 +82,12 @@ export function CheckoutClient() {
     defaultValues: { customerName: "", customerPhone: "", customerEmail: "", comment: "" },
   })
 
-  // ── City search with debounce ──
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // ── Load regions on mount ──
+  useEffect(() => {
+    getNovaPoshtaRegions().then(setRegions).catch(() => setRegions([]))
+  }, [])
 
+  // ── City search with debounce ──
   const handleCitySearch = useCallback((value: string) => {
     setCitySearch(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -101,14 +99,28 @@ export function CheckoutClient() {
       setCitiesLoading(true)
       try {
         const results = await searchNovaPoshtaCities(value)
-        setCities(results)
+        console.log("[NP debug] results:", results.length, "selectedRegion:", selectedRegion?.id, "sample regionIds:", results.slice(0, 3).map(c => c.regionId))
+        const filtered = selectedRegion
+          ? results.filter((c) => c.regionId === selectedRegion.id)
+          : results
+        console.log("[NP debug] filtered:", filtered.length)
+        setCities(filtered)
       } catch {
         setCities([])
       } finally {
         setCitiesLoading(false)
       }
     }, 300)
-  }, [])
+  }, [selectedRegion])
+
+  // ── Reset city & warehouse when region changes ──
+  useEffect(() => {
+    setSelectedCity(null)
+    setCities([])
+    setCitySearch("")
+    setWarehouses([])
+    setSelectedWarehouse(null)
+  }, [selectedRegion])
 
   // ── Load warehouses when city changes ──
   useEffect(() => {
@@ -119,16 +131,11 @@ export function CheckoutClient() {
     }
     let cancelled = false
     setWarehousesLoading(true)
-    getNovaPoshtaWarehouses(selectedCity.ref)
-      .then((data) => {
-        if (!cancelled) setWarehouses(data)
-      })
-      .catch(() => {
-        if (!cancelled) setWarehouses([])
-      })
-      .finally(() => {
-        if (!cancelled) setWarehousesLoading(false)
-      })
+    setSelectedWarehouse(null)
+    getNovaPoshtaWarehouses(selectedCity.id)
+      .then((data) => { if (!cancelled) setWarehouses(data) })
+      .catch(() => { if (!cancelled) setWarehouses([]) })
+      .finally(() => { if (!cancelled) setWarehousesLoading(false) })
     return () => { cancelled = true }
   }, [selectedCity])
 
@@ -147,10 +154,10 @@ export function CheckoutClient() {
           customerPhone: values.customerPhone,
           customerEmail: values.customerEmail || undefined,
           comment: values.comment || undefined,
-          npCityRef: selectedCity.ref,
-          npCityName: selectedCity.description,
-          npWarehouseRef: selectedWarehouse.ref,
-          npWarehouseName: selectedWarehouse.description,
+          npCityRef: String(selectedCity.id),
+          npCityName: selectedCity.name,
+          npWarehouseRef: String(selectedWarehouse.id),
+          npWarehouseName: selectedWarehouse.name,
         },
         items.map((item) => ({
           id: item.id,
@@ -167,10 +174,8 @@ export function CheckoutClient() {
 
       const { data, signature } = await generatePaymentData(orderId, orderNumber, totalPrice)
 
-      // Clear cart before redirect
       clearCart()
 
-      // Submit hidden form to LiqPay
       const form = liqpayFormRef.current!
       ;(form.elements.namedItem("data") as HTMLInputElement).value = data
       ;(form.elements.namedItem("signature") as HTMLInputElement).value = signature
@@ -182,7 +187,7 @@ export function CheckoutClient() {
     }
   }
 
-  // ── Empty cart redirect ──
+  // ── Empty cart ──
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -268,7 +273,57 @@ export function CheckoutClient() {
               {"\u0414\u043e\u0441\u0442\u0430\u0432\u043a\u0430 \u041d\u043e\u0432\u043e\u044e \u041f\u043e\u0448\u0442\u043e\u044e"}
             </h2>
             <div className="space-y-4">
-              {/* City */}
+              {/* Region */}
+              <div>
+                <Label>{"\u041e\u0431\u043b\u0430\u0441\u0442\u044c"} *</Label>
+                <Popover open={regionOpen} onOpenChange={setRegionOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={regionOpen}
+                      className="mt-1.5 w-full justify-between font-normal"
+                    >
+                      {selectedRegion
+                        ? selectedRegion.name
+                        : "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c..."}
+                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder={"\u041f\u043e\u0448\u0443\u043a \u043e\u0431\u043b\u0430\u0441\u0442\u0456..."} />
+                      <CommandList>
+                        {regions.length === 0 && (
+                          <CommandEmpty>{"\u041e\u0431\u043b\u0430\u0441\u0442\u044c \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</CommandEmpty>
+                        )}
+                        <CommandGroup>
+                          {regions.map((region) => (
+                            <CommandItem
+                              key={region.id}
+                              value={region.name}
+                              onSelect={() => {
+                                setSelectedRegion(region)
+                                setRegionOpen(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 size-4",
+                                  selectedRegion?.id === region.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {region.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* City (search) */}
               <div>
                 <Label>{"\u041c\u0456\u0441\u0442\u043e"} *</Label>
                 <Popover open={cityOpen} onOpenChange={setCityOpen}>
@@ -277,11 +332,14 @@ export function CheckoutClient() {
                       variant="outline"
                       role="combobox"
                       aria-expanded={cityOpen}
+                      disabled={!selectedRegion}
                       className="mt-1.5 w-full justify-between font-normal"
                     >
                       {selectedCity
-                        ? selectedCity.description
-                        : "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e..."}
+                        ? selectedCity.name
+                        : selectedRegion
+                          ? "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e..."
+                          : "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c"}
                       <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -304,11 +362,10 @@ export function CheckoutClient() {
                         <CommandGroup>
                           {cities.map((city) => (
                             <CommandItem
-                              key={city.ref}
-                              value={city.ref}
+                              key={city.id}
+                              value={String(city.id)}
                               onSelect={() => {
                                 setSelectedCity(city)
-                                setSelectedWarehouse(null)
                                 setCityOpen(false)
                                 setCitySearch("")
                               }}
@@ -316,10 +373,10 @@ export function CheckoutClient() {
                               <Check
                                 className={cn(
                                   "mr-2 size-4",
-                                  selectedCity?.ref === city.ref ? "opacity-100" : "opacity-0"
+                                  selectedCity?.id === city.id ? "opacity-100" : "opacity-0"
                                 )}
                               />
-                              {city.description}
+                              {city.name}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -341,11 +398,18 @@ export function CheckoutClient() {
                       disabled={!selectedCity}
                       className="mt-1.5 w-full justify-between font-normal"
                     >
-                      {selectedWarehouse
-                        ? selectedWarehouse.description
-                        : selectedCity
-                          ? "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0432\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f..."
-                          : "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e"}
+                      {warehousesLoading ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="size-4 animate-spin" />
+                          {"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."}
+                        </span>
+                      ) : selectedWarehouse ? (
+                        selectedWarehouse.name
+                      ) : selectedCity ? (
+                        "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0432\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f..."
+                      ) : (
+                        "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e"
+                      )}
                       <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -364,8 +428,8 @@ export function CheckoutClient() {
                         <CommandGroup>
                           {warehouses.map((wh) => (
                             <CommandItem
-                              key={wh.ref}
-                              value={wh.description}
+                              key={wh.id}
+                              value={wh.name}
                               onSelect={() => {
                                 setSelectedWarehouse(wh)
                                 setWarehouseOpen(false)
@@ -374,10 +438,10 @@ export function CheckoutClient() {
                               <Check
                                 className={cn(
                                   "mr-2 size-4",
-                                  selectedWarehouse?.ref === wh.ref ? "opacity-100" : "opacity-0"
+                                  selectedWarehouse?.id === wh.id ? "opacity-100" : "opacity-0"
                                 )}
                               />
-                              {wh.description}
+                              {wh.name}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -418,7 +482,6 @@ export function CheckoutClient() {
                 {"\u0412\u0430\u0448\u0435 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f"}
               </h2>
 
-              {/* Items list */}
               <div className="max-h-64 space-y-3 overflow-y-auto">
                 {items.map((item) => (
                   <div key={`${item.type}-${item.id}`} className="flex gap-3">
@@ -438,7 +501,6 @@ export function CheckoutClient() {
                 ))}
               </div>
 
-              {/* Total */}
               <div className="mt-4 border-t border-border pt-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{"\u0420\u0430\u0437\u043e\u043c"}</span>
@@ -446,7 +508,6 @@ export function CheckoutClient() {
                 </div>
               </div>
 
-              {/* Pay button */}
               <Button
                 type="submit"
                 disabled={submitting}

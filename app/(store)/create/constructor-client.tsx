@@ -2,11 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from "react"
 import {
-  ImagePlus, Type, QrCode, Paintbrush,
+  ImagePlus, Type, QrCode, Paintbrush, Sparkles,
   ZoomIn, ZoomOut, FlipHorizontal2, Trash2,
   Maximize2, Minimize2, X,
   Upload, AlignLeft, AlignCenter, AlignRight,
-  RotateCcw, Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown,
+  RotateCcw, Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown, Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import QRCode from "qrcode"
@@ -62,7 +62,7 @@ interface BaseData {
   price: string | number | null
 }
 
-export type ElementType = "image" | "print" | "text" | "qr"
+export type ElementType = "image" | "print" | "text" | "qr" | "ai"
 
 export interface CanvasElement {
   id: string
@@ -96,6 +96,7 @@ interface ConstructorClientProps {
 // Add to cart imports
 import { useCart } from "@/lib/cart-context"
 import { useRouter } from "next/navigation"
+import { generateDalleImage } from "./actions"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,6 +107,7 @@ const TABS: { type: ElementType; icon: typeof ImagePlus; label: string }[] = [
   { type: "print", icon: Paintbrush, label: "\u041f\u0440\u0438\u043d\u0442\u0438" },
   { type: "text", icon: Type, label: "\u0422\u0435\u043a\u0441\u0442" },
   { type: "qr", icon: QrCode, label: "QR-\u043a\u043e\u0434" },
+  { type: "ai", icon: Sparkles, label: "AI" },
 ]
 
 const FONTS = [
@@ -563,6 +565,10 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     }
   }, [qrInput, addElement])
 
+  const handleAddAiImage = useCallback((imageUrl: string) => {
+    addElement({ type: "image", imageUrl })
+  }, [addElement])
+
   const deleteElement = useCallback((id: string) => {
     setElements((prev) => prev.filter((el) => el.id !== id))
     if (selectedElementId === id) setSelectedElementId(null)
@@ -945,7 +951,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0449\u043e \u0434\u043e\u0434\u0430\u0442\u0438"}
           </p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {TABS.map((tab) => {
               const Icon = tab.icon
               const active = activeTab === tab.type
@@ -997,6 +1003,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               onChange={setQrInput}
               onAdd={handleAddQr}
             />
+          )}
+          {activeTab === "ai" && (
+            <AiTab onAdd={handleAddAiImage} />
           )}
         </div>
         </div>{/* end mobile collapsible wrapper */}
@@ -1866,4 +1875,92 @@ function QrPreview({ value }: { value: string }) {
 
   if (!src) return null
   return <img src={src} alt="QR" className="mx-auto h-32 w-32 rounded-lg" />
+}
+
+function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
+  const [prompt, setPrompt] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || loading) return
+    setLoading(true)
+    setError(null)
+    setPreviewUrl(null)
+
+    const result = await generateDalleImage(prompt.trim())
+
+    if ("error" in result) {
+      setError(result.error)
+    } else {
+      setPreviewUrl(result.imageUrl)
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <label className="mb-2 block text-sm font-medium text-foreground">
+          {"\u041e\u043f\u0438\u0448\u0456\u0442\u044c \u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u043d\u044f"}
+        </label>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          placeholder={"\u041e\u043f\u0438\u0448\u0456\u0442\u044c \u0449\u043e \u0445\u043e\u0447\u0435\u0442\u0435 \u043f\u043e\u0431\u0430\u0447\u0438\u0442\u0438..."}
+        />
+      </div>
+
+      <button
+        onClick={handleGenerate}
+        disabled={!prompt.trim() || loading}
+        className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {"\u0413\u0435\u043d\u0435\u0440\u0430\u0446\u0456\u044f..."}
+          </>
+        ) : (
+          <>
+            <Sparkles className="h-4 w-4" />
+            {"\u0417\u0433\u0435\u043d\u0435\u0440\u0443\u0432\u0430\u0442\u0438"}
+          </>
+        )}
+      </button>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {previewUrl && (
+        <div className="flex flex-col gap-3">
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <img
+              src={previewUrl}
+              alt="AI generated"
+              className="mx-auto aspect-square w-full rounded-lg object-cover"
+            />
+          </div>
+          <button
+            onClick={() => onAdd(previewUrl)}
+            className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 flex items-center justify-center gap-2"
+          >
+            <Check className="h-4 w-4" />
+            {"\u0414\u043e\u0434\u0430\u0442\u0438 \u043d\u0430 \u0432\u0438\u0440\u0456\u0431"}
+          </button>
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground text-center">
+        {"\u0413\u0435\u043d\u0435\u0440\u0430\u0446\u0456\u044f \u043c\u043e\u0436\u0435 \u0437\u0430\u0439\u043d\u044f\u0442\u0438 \u0434\u043e 30 \u0441\u0435\u043a\u0443\u043d\u0434"}
+      </p>
+    </div>
+  )
 }
