@@ -147,7 +147,7 @@ export function PrintsPageClient({
 function PrintCard({ print }: { print: PrintDesign }) {
   return (
     <Link href={`/print/${print.id}`} className="group overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md">
-      <div className="relative aspect-square bg-muted/30">
+      <div className="relative aspect-square bg-muted">
         {print.image_url ? (
           <Image
             src={print.image_url}

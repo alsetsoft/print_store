@@ -218,7 +218,7 @@ export default async function PrintDetailPage({
 
       {/* Print info */}
       <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-start">
-        <div className="shrink-0 overflow-hidden rounded-xl border bg-muted/30 md:w-64">
+        <div className="shrink-0 overflow-hidden rounded-xl border bg-muted md:w-64">
           <div className="relative aspect-square">
             {print.image_url ? (
               <Image
