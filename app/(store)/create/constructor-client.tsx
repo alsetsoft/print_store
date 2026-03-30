@@ -1786,19 +1786,11 @@ function PrintTab({ prints, categories, subcategories, onSelect }: {
               className="group flex flex-col items-center gap-1.5 rounded-xl border border-border p-2 transition-all hover:border-primary/40 hover:bg-muted/50 hover:shadow-sm"
             >
               {p.image_url ? (
-                <div
-                  className="flex h-16 w-16 items-center justify-center rounded-lg"
-                  style={{
-                    backgroundImage: "conic-gradient(#e5e5e5 25%, #fff 25% 50%, #e5e5e5 50% 75%, #fff 75%)",
-                    backgroundSize: "10px 10px",
-                  }}
-                >
-                  <img
-                    src={p.image_url}
-                    alt={p.name}
-                    className="h-16 w-16 rounded-lg object-contain"
-                  />
-                </div>
+                <img
+                  src={p.image_url}
+                  alt={p.name}
+                  className="h-16 w-16 rounded-lg bg-muted object-contain"
+                />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                   <Paintbrush className="h-5 w-5" />
