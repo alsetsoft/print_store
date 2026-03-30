@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3, Star, Link2 } from "lucide-react"
+import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3, Star, Link2, ChevronLeft, ChevronRight } from "lucide-react"
 import { createBase, updateBase, decodeLabel } from "@/app/admin/parameters/actions"
 import { createClient } from "@/lib/supabase/client"
 import { ZoneEditorModal, Zone } from "./zone-editor-modal"
@@ -142,9 +142,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
           .eq("base_id", item.id)
           .order("sort_order")
         if (data && data.length > 0) {
-          // Load zones for each image and organize by color
-          const imgByColor: Record<number, UploadedImage[]> = {}
-          await Promise.all(
+          // Load zones for each image, preserving sort_order
+          const resolved = await Promise.all(
             data.map(async (img, index) => {
               const { data: zonesData } = await supabase
                 .from("image_zones")
@@ -164,13 +163,18 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                   is_max: z.is_max ?? false,
                   price: Number(z.price) || 0,
                 })),
-                label: decodeLabel(img.url).label || `Основа ${index + 1}`,
+                label: decodeLabel(img.url).label || `\u041E\u0441\u043D\u043E\u0432\u0430 ${index + 1}`,
               }
-              const colorId = img.color_id || 0
-              if (!imgByColor[colorId]) imgByColor[colorId] = []
-              imgByColor[colorId].push(uploadedImg)
+              return { uploadedImg, colorId: img.color_id || 0, sortIndex: index }
             })
           )
+          // Sort by original query order then group by color
+          resolved.sort((a, b) => a.sortIndex - b.sortIndex)
+          const imgByColor: Record<number, UploadedImage[]> = {}
+          for (const { uploadedImg, colorId } of resolved) {
+            if (!imgByColor[colorId]) imgByColor[colorId] = []
+            imgByColor[colorId].push(uploadedImg)
+          }
           // After loading, sync zones from primary color to all others
           const { data: colorData } = await supabase
             .from("base_colors")
@@ -288,6 +292,34 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
         ...prev,
         [colorId]: images.filter((i) => i.id !== id),
       }
+    })
+  }
+
+  const handleMoveImage = (colorId: number, imageId: string, direction: -1 | 1) => {
+    setImagesByColor((prev) => {
+      const images = prev[colorId] || []
+      const idx = images.findIndex((i) => i.id === imageId)
+      if (idx < 0) return prev
+      const newIdx = idx + direction
+      if (newIdx < 0 || newIdx >= images.length) return prev
+      const updated = { ...prev }
+      // Swap on the active color
+      const arr = [...images]
+      ;[arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]]
+      updated[colorId] = arr
+      // If moving on primary color, also swap at same indices on all other colors
+      if (colorId === primaryColorId) {
+        for (let c = 1; c < selectedColorIds.length; c++) {
+          const cId = selectedColorIds[c]
+          const cImages = updated[cId] || []
+          if (cImages.length > Math.max(idx, newIdx)) {
+            const cArr = [...cImages]
+            ;[cArr[idx], cArr[newIdx]] = [cArr[newIdx], cArr[idx]]
+            updated[cId] = cArr
+          }
+        }
+      }
+      return updated
     })
   }
 
@@ -732,7 +764,8 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
 
                     {(imagesByColor[activeColorTab] || []).length > 0 && (
                       <div className="mt-3 grid grid-cols-3 gap-3">
-                        {(imagesByColor[activeColorTab] || []).map((img) => {
+                        {(imagesByColor[activeColorTab] || []).map((img, imgIdx) => {
+                          const totalImages = (imagesByColor[activeColorTab] || []).length
                           const displaySrc = img.uploading
                             ? img.localPreview
                             : (img.url || img.localPreview)
@@ -802,6 +835,34 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                                     {hasZones && (
                                       <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground shadow-sm">
                                         {img.zones.length}
+                                      </div>
+                                    )}
+                                    {!img.uploading && isActiveColorPrimary && totalImages > 1 && (
+                                      <div className="absolute bottom-1 left-1 right-1 flex justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                        {imgIdx > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleMoveImage(activeColorTab, img.id, -1)
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-background"
+                                          >
+                                            <ChevronLeft className="h-3 w-3 text-foreground" />
+                                          </button>
+                                        )}
+                                        {imgIdx < totalImages - 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleMoveImage(activeColorTab, img.id, 1)
+                                            }}
+                                            className="flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-background"
+                                          >
+                                            <ChevronRight className="h-3 w-3 text-foreground" />
+                                          </button>
+                                        )}
                                       </div>
                                     )}
                                   </>
