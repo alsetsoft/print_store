@@ -892,10 +892,31 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                       key={color.id}
                       title={color.name}
                       onClick={() => {
+                        // Build zone ID mapping: old color zones → new color zones (by image index + zone index)
+                        const oldImages = selectedColorId
+                          ? allImages.filter((img) => img.color_id === selectedColorId)
+                          : allImages
+                        const newImages = allImages.filter((img) => img.color_id === color.id)
+                        const zoneMap = new Map<string, string>()
+                        for (let i = 0; i < Math.min(oldImages.length, newImages.length); i++) {
+                          const oldZones = oldImages[i].zones
+                          const newZones = newImages[i].zones
+                          for (let z = 0; z < Math.min(oldZones.length, newZones.length); z++) {
+                            zoneMap.set(oldZones[z].id, newZones[z].id)
+                          }
+                        }
+                        // Remap elements to new zone IDs, drop elements whose zones don't map
+                        setElements((prev) =>
+                          prev
+                            .map((el) => {
+                              const newZoneId = zoneMap.get(el.zoneId)
+                              return newZoneId ? { ...el, zoneId: newZoneId } : null
+                            })
+                            .filter((el): el is CanvasElement => el !== null)
+                        )
                         setSelectedColorId(color.id)
                         setImgIndex(0)
-                        const filtered = allImages.filter((img) => img.color_id === color.id)
-                        setSelectedZoneId(filtered[0]?.zones[0]?.id ?? null)
+                        setSelectedZoneId(newImages[0]?.zones[0]?.id ?? null)
                         setSelectedElementId(null)
                       }}
                       className={cn(
