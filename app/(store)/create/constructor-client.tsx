@@ -1565,6 +1565,7 @@ function CanvasElementView({
   onDeselect: () => void
 }) {
   const isImageLike = element.type === "image" || element.type === "print" || element.type === "qr"
+  const [aspect, setAspect] = useState(1)
 
   return (
     <div
@@ -1577,7 +1578,8 @@ function CanvasElementView({
         left: `${element.position?.x ?? 50}%`,
         top: `${element.position?.y ?? 50}%`,
         width: `${element.scale}%`,
-        height: element.type === "text" ? "auto" : `${element.scale}%`,
+        height: element.type === "text" ? "auto" : undefined,
+        aspectRatio: element.type === "text" ? undefined : `${aspect}`,
         transform: `translate(-50%, -50%)${element.flipped ? " scaleX(-1)" : ""}`,
         willChange: isDragging ? "left, top" : "auto",
         zIndex: isSelected ? 20 : 10,
@@ -1591,6 +1593,12 @@ function CanvasElementView({
           alt=""
           className="pointer-events-none h-full w-full object-contain drop-shadow-md"
           draggable={false}
+          onLoad={(e) => {
+            const img = e.currentTarget
+            if (img.naturalWidth && img.naturalHeight) {
+              setAspect(img.naturalWidth / img.naturalHeight)
+            }
+          }}
         />
       )}
 

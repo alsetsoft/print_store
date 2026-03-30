@@ -46,6 +46,7 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
   const [printPosition, setPrintPosition] = useState({ x: initialConfig?.x ?? 50, y: initialConfig?.y ?? 50 })
   const [printScale, setPrintScale] = useState(initialConfig?.scale ?? 50)
   const [printFlipped, setPrintFlipped] = useState(initialConfig?.flipped ?? false)
+  const [printAspect, setPrintAspect] = useState(1)
   const [isPrintSelected, setIsPrintSelected] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState<"shrink" | "grow" | null>(null)
@@ -484,7 +485,7 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
                           left: `${printPosition.x}%`,
                           top: `${printPosition.y}%`,
                           width: `${printScale}%`,
-                          height: `${printScale}%`,
+                          aspectRatio: `${printAspect}`,
                           transform: `translate(-50%, -50%)${printFlipped ? " scaleX(-1)" : ""}`,
                           willChange: isDragging ? "left, top" : "auto",
                         }}
@@ -500,6 +501,12 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
                           alt={print.name}
                           className="pointer-events-none h-full w-full object-contain drop-shadow-md"
                           draggable={false}
+                          onLoad={(e) => {
+                            const img = e.currentTarget
+                            if (img.naturalWidth && img.naturalHeight) {
+                              setPrintAspect(img.naturalWidth / img.naturalHeight)
+                            }
+                          }}
                         />
 
                         {isPrintSelected && (
