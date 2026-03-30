@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { ArrowLeft, ChevronsUpDown, Check, Loader2, ShoppingBag } from "lucide-react"
+import { ArrowLeft, Loader2, ShoppingBag, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCart } from "@/lib/cart-context"
@@ -14,16 +14,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { cn } from "@/lib/utils"
 import type { NPRegion, NPCity, NPWarehouse } from "@/lib/nova-poshta"
 
 import {
@@ -54,6 +44,7 @@ export function CheckoutClient() {
   const [regions, setRegions] = useState<NPRegion[]>([])
   const [selectedRegion, setSelectedRegion] = useState<NPRegion | null>(null)
   const [regionOpen, setRegionOpen] = useState(false)
+  const [regionSearch, setRegionSearch] = useState("")
 
   // City state (search-based, filtered by region)
   const [cities, setCities] = useState<NPCity[]>([])
@@ -67,6 +58,7 @@ export function CheckoutClient() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<NPWarehouse | null>(null)
   const [warehouseOpen, setWarehouseOpen] = useState(false)
   const [warehousesLoading, setWarehousesLoading] = useState(false)
+  const [warehouseSearch, setWarehouseSearch] = useState("")
 
   const [submitting, setSubmitting] = useState(false)
 
@@ -97,6 +89,7 @@ export function CheckoutClient() {
     }
     debounceRef.current = setTimeout(async () => {
       setCitiesLoading(true)
+      setCityOpen(true)
       try {
         const results = await searchNovaPoshtaCities(value)
         console.log("[NP debug] results:", results.length, "selectedRegion:", selectedRegion?.id, "sample regionIds:", results.slice(0, 3).map(c => c.regionId))
@@ -105,6 +98,7 @@ export function CheckoutClient() {
           : results
         console.log("[NP debug] filtered:", filtered.length)
         setCities(filtered)
+        setCityOpen(true)
       } catch {
         setCities([])
       } finally {
@@ -120,6 +114,7 @@ export function CheckoutClient() {
     setCitySearch("")
     setWarehouses([])
     setSelectedWarehouse(null)
+    setWarehouseSearch("")
   }, [selectedRegion])
 
   // ── Load warehouses when city changes ──
@@ -127,6 +122,7 @@ export function CheckoutClient() {
     if (!selectedCity) {
       setWarehouses([])
       setSelectedWarehouse(null)
+      setWarehouseSearch("")
       return
     }
     let cancelled = false
@@ -276,179 +272,144 @@ export function CheckoutClient() {
               {/* Region */}
               <div>
                 <Label>{"\u041e\u0431\u043b\u0430\u0441\u0442\u044c"} *</Label>
-                <Popover open={regionOpen} onOpenChange={setRegionOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={regionOpen}
-                      className="mt-1.5 w-full justify-between font-normal"
-                    >
-                      {selectedRegion
-                        ? selectedRegion.name
-                        : "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c..."}
-                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder={"\u041f\u043e\u0448\u0443\u043a \u043e\u0431\u043b\u0430\u0441\u0442\u0456..."} />
-                      <CommandList>
-                        {regions.length === 0 && (
-                          <CommandEmpty>{"\u041e\u0431\u043b\u0430\u0441\u0442\u044c \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</CommandEmpty>
-                        )}
-                        <CommandGroup>
-                          {regions.map((region) => (
-                            <CommandItem
-                              key={region.id}
-                              value={region.name}
-                              onSelect={() => {
-                                setSelectedRegion(region)
-                                setRegionOpen(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 size-4",
-                                  selectedRegion?.id === region.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {region.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                <div className="relative mt-1.5">
+                  {selectedRegion ? (
+                    <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm">
+                      <span className="flex-1 truncate">{selectedRegion.name}</span>
+                      <button type="button" onClick={() => setSelectedRegion(null)} className="ml-2 shrink-0 text-muted-foreground hover:text-foreground">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder={"\u041f\u043e\u0448\u0443\u043a \u043e\u0431\u043b\u0430\u0441\u0442\u0456..."}
+                      value={regionSearch}
+                      onChange={(e) => setRegionSearch(e.target.value)}
+                      onFocus={() => setRegionOpen(true)}
+                      onBlur={() => setRegionOpen(false)}
+                    />
+                  )}
+                  {regionOpen && (() => {
+                    const filtered = regions.filter((r) => !regionSearch || r.name.toLowerCase().includes(regionSearch.toLowerCase()))
+                    return filtered.length > 0 ? (
+                      <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+                        {filtered.map((region) => (
+                          <button
+                            key={region.id}
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { setSelectedRegion(region); setRegionSearch(""); setRegionOpen(false) }}
+                          >
+                            {region.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : regionSearch ? (
+                      <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 shadow-md">
+                        <p className="px-2 py-1.5 text-sm text-muted-foreground">{"\u041e\u0431\u043b\u0430\u0441\u0442\u044c \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</p>
+                      </div>
+                    ) : null
+                  })()}
+                </div>
               </div>
 
               {/* City (search) */}
               <div>
                 <Label>{"\u041c\u0456\u0441\u0442\u043e"} *</Label>
-                <Popover open={cityOpen} onOpenChange={setCityOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={cityOpen}
+                <div className="relative mt-1.5">
+                  {selectedCity ? (
+                    <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm">
+                      <span className="flex-1 truncate">{selectedCity.name}</span>
+                      <button type="button" onClick={() => setSelectedCity(null)} className="ml-2 shrink-0 text-muted-foreground hover:text-foreground">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder={selectedRegion ? "\u041f\u043e\u0448\u0443\u043a \u043c\u0456\u0441\u0442\u0430..." : "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c"}
                       disabled={!selectedRegion}
-                      className="mt-1.5 w-full justify-between font-normal"
-                    >
-                      {selectedCity
-                        ? selectedCity.name
-                        : selectedRegion
-                          ? "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e..."
-                          : "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0431\u043b\u0430\u0441\u0442\u044c"}
-                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder={"\u041f\u043e\u0448\u0443\u043a \u043c\u0456\u0441\u0442\u0430..."}
-                        value={citySearch}
-                        onValueChange={handleCitySearch}
-                      />
-                      <CommandList>
-                        {citiesLoading && (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                          </div>
-                        )}
-                        {!citiesLoading && citySearch.length >= 2 && cities.length === 0 && (
-                          <CommandEmpty>{"\u041c\u0456\u0441\u0442\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</CommandEmpty>
-                        )}
-                        <CommandGroup>
-                          {cities.map((city) => (
-                            <CommandItem
-                              key={city.id}
-                              value={String(city.id)}
-                              onSelect={() => {
-                                setSelectedCity(city)
-                                setCityOpen(false)
-                                setCitySearch("")
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 size-4",
-                                  selectedCity?.id === city.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {city.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                      value={citySearch}
+                      onChange={(e) => handleCitySearch(e.target.value)}
+                      onFocus={() => { if (cities.length > 0) setCityOpen(true) }}
+                      onBlur={() => setCityOpen(false)}
+                    />
+                  )}
+                  {cityOpen && (citiesLoading || cities.length > 0 || (citySearch.length >= 2 && !citiesLoading)) && (
+                    <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+                      {citiesLoading && (
+                        <div className="flex items-center justify-center py-3">
+                          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                      {!citiesLoading && citySearch.length >= 2 && cities.length === 0 && (
+                        <p className="px-2 py-1.5 text-sm text-muted-foreground">{"\u041c\u0456\u0441\u0442\u043e \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</p>
+                      )}
+                      {!citiesLoading && cities.map((city) => (
+                        <button
+                          key={city.id}
+                          type="button"
+                          className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setSelectedCity(city); setCityOpen(false); setCitySearch("") }}
+                        >
+                          {city.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Warehouse */}
               <div>
                 <Label>{"\u0412\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f"} *</Label>
-                <Popover open={warehouseOpen} onOpenChange={setWarehouseOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={warehouseOpen}
+                <div className="relative mt-1.5">
+                  {selectedWarehouse ? (
+                    <div className="flex min-h-9 items-center rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                      <span className="flex-1 line-clamp-2">{selectedWarehouse.name}</span>
+                      <button type="button" onClick={() => setSelectedWarehouse(null)} className="ml-2 shrink-0 text-muted-foreground hover:text-foreground">
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : warehousesLoading ? (
+                    <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      {"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."}
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder={selectedCity ? "\u041f\u043e\u0448\u0443\u043a \u0432\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f..." : "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e"}
                       disabled={!selectedCity}
-                      className="mt-1.5 w-full justify-between font-normal"
-                    >
-                      {warehousesLoading ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="size-4 animate-spin" />
-                          {"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."}
-                        </span>
-                      ) : selectedWarehouse ? (
-                        selectedWarehouse.name
-                      ) : selectedCity ? (
-                        "\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0432\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f..."
-                      ) : (
-                        "\u0421\u043f\u043e\u0447\u0430\u0442\u043a\u0443 \u043e\u0431\u0435\u0440\u0456\u0442\u044c \u043c\u0456\u0441\u0442\u043e"
-                      )}
-                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder={"\u041f\u043e\u0448\u0443\u043a \u0432\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f..."} />
-                      <CommandList>
-                        {warehousesLoading && (
-                          <div className="flex items-center justify-center py-4">
-                            <Loader2 className="size-4 animate-spin text-muted-foreground" />
-                          </div>
-                        )}
-                        {!warehousesLoading && warehouses.length === 0 && (
-                          <CommandEmpty>{"\u0412\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</CommandEmpty>
-                        )}
-                        <CommandGroup>
-                          {warehouses.map((wh) => (
-                            <CommandItem
-                              key={wh.id}
-                              value={wh.name}
-                              onSelect={() => {
-                                setSelectedWarehouse(wh)
-                                setWarehouseOpen(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 size-4",
-                                  selectedWarehouse?.id === wh.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {wh.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                      value={warehouseSearch}
+                      onChange={(e) => setWarehouseSearch(e.target.value)}
+                      onFocus={() => setWarehouseOpen(true)}
+                      onBlur={() => setWarehouseOpen(false)}
+                    />
+                  )}
+                  {warehouseOpen && !selectedWarehouse && !warehousesLoading && (() => {
+                    const filtered = warehouses.filter((w) => !warehouseSearch || w.name.toLowerCase().includes(warehouseSearch.toLowerCase()))
+                    return filtered.length > 0 ? (
+                      <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
+                        {filtered.map((wh) => (
+                          <button
+                            key={wh.id}
+                            type="button"
+                            className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { setSelectedWarehouse(wh); setWarehouseOpen(false); setWarehouseSearch("") }}
+                          >
+                            {wh.name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : warehouseSearch ? (
+                      <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 shadow-md">
+                        <p className="px-2 py-1.5 text-sm text-muted-foreground">{"\u0412\u0456\u0434\u0434\u0456\u043b\u0435\u043d\u043d\u044f \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}</p>
+                      </div>
+                    ) : null
+                  })()}
+                </div>
               </div>
             </div>
           </div>
