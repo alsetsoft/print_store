@@ -416,9 +416,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
 
   const SNAP_THRESHOLD = 3 // % distance to snap to center
 
-  const constrainPos = useCallback((x: number, y: number) => ({
-    x: Math.max(0, Math.min(100, x)),
-    y: Math.max(0, Math.min(100, y)),
+  const constrainPos = useCallback((x: number, y: number, halfX: number, halfY: number) => ({
+    x: Math.max(halfX, Math.min(100 - halfX, x)),
+    y: Math.max(halfY, Math.min(100 - halfY, y)),
   }), [])
 
   // -------------------------------------------------------------------------
@@ -426,6 +426,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   // -------------------------------------------------------------------------
 
   // Keep a ref to elements so drag handlers can read current state without stale closures
+  const aspectMapRef = useRef<Record<string, number>>({})
   const elementsRef = useRef(elements)
   elementsRef.current = elements
 
@@ -438,9 +439,26 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       const dy = e.clientY - resizeStartPos.y
       const delta = isResizing === "shrink" ? -(dx + dy) / 3 : (dx + dy) / 3
       const newScale = Math.max(10, Math.min(100, resizeStartScale + delta))
-      setElements((prev) =>
-        prev.map((el) => el.id === elId ? { ...el, scale: newScale } : el)
-      )
+      const el = elementsRef.current.find((el) => el.id === elId)
+      const zone = el ? currentImage?.zones.find((z) => z.id === el.zoneId) : null
+      if (zone && imageRect) {
+        const zw = (zone.width / 100) * imageRect.width
+        const zh = (zone.height / 100) * imageRect.height
+        const aspect = aspectMapRef.current[elId] ?? 1
+        const halfX = newScale / 2
+        const halfY = (newScale / 100 * zw / aspect) / zh * 50
+        setElements((prev) =>
+          prev.map((el) => {
+            if (el.id !== elId) return el
+            const pos = constrainPos(el.position.x, el.position.y, halfX, halfY)
+            return { ...el, scale: newScale, position: pos }
+          })
+        )
+      } else {
+        setElements((prev) =>
+          prev.map((el) => el.id === elId ? { ...el, scale: newScale } : el)
+        )
+      }
       return
     }
 
@@ -458,7 +476,10 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     const zh = (zone.height / 100) * imageRect.height
     const mx = e.clientX - cr.left - zl
     const my = e.clientY - cr.top - zt
-    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100)
+    const aspect = aspectMapRef.current[elId] ?? 1
+    const halfX = currentEl.scale / 2
+    const halfY = (currentEl.scale / 100 * zw / aspect) / zh * 50
+    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100, halfX, halfY)
     const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
     const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
     if (snapX) newPos.x = 50
@@ -828,6 +849,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                           onFlip={() => toggleFlip(el.id)}
                           onDelete={() => deleteElement(el.id)}
                           onDeselect={() => setSelectedElementId(null)}
+                          onAspectRatio={(r) => { aspectMapRef.current[el.id] = r }}
                         />
                       ))}
 
@@ -1553,6 +1575,7 @@ function CanvasElementView({
   onFlip,
   onDelete,
   onDeselect,
+  onAspectRatio,
 }: {
   element: CanvasElement
   isSelected: boolean
@@ -1563,6 +1586,7 @@ function CanvasElementView({
   onFlip: () => void
   onDelete: () => void
   onDeselect: () => void
+  onAspectRatio?: (ratio: number) => void
 }) {
   const isImageLike = element.type === "image" || element.type === "print" || element.type === "qr"
   const [aspect, setAspect] = useState(1)
@@ -1596,7 +1620,9 @@ function CanvasElementView({
           onLoad={(e) => {
             const img = e.currentTarget
             if (img.naturalWidth && img.naturalHeight) {
-              setAspect(img.naturalWidth / img.naturalHeight)
+              const r = img.naturalWidth / img.naturalHeight
+              setAspect(r)
+              onAspectRatio?.(r)
             }
           }}
         />

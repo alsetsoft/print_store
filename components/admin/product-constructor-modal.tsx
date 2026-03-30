@@ -185,9 +185,9 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
   const SNAP_THRESHOLD = 3 // % distance to snap to center
   const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
 
-  const constrainPos = useCallback((x: number, y: number) => ({
-    x: Math.max(0, Math.min(100, x)),
-    y: Math.max(0, Math.min(100, y)),
+  const constrainPos = useCallback((x: number, y: number, halfX: number, halfY: number) => ({
+    x: Math.max(halfX, Math.min(100 - halfX, x)),
+    y: Math.max(halfY, Math.min(100 - halfY, y)),
   }), [])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -195,7 +195,15 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
       const dx = e.clientX - resizeStartPos.x
       const dy = e.clientY - resizeStartPos.y
       const delta = isResizing === "shrink" ? -(dx + dy) / 3 : (dx + dy) / 3
-      setPrintScale((s) => Math.max(10, Math.min(100, resizeStartScale + delta)))
+      const newScale = Math.max(10, Math.min(100, resizeStartScale + delta))
+      setPrintScale(newScale)
+      if (currentZone && imageRect) {
+        const zw = (currentZone.width / 100) * imageRect.width
+        const zh = (currentZone.height / 100) * imageRect.height
+        const halfX = newScale / 2
+        const halfY = (newScale / 100 * zw / printAspect) / zh * 50
+        setPrintPosition((pos) => constrainPos(pos.x, pos.y, halfX, halfY))
+      }
       return
     }
     if (!isDragging || !canvasRef.current || !currentZone || !imageRect) return
@@ -206,7 +214,9 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
     const zh = (currentZone.height / 100) * imageRect.height
     const mx = e.clientX - cr.left - zl
     const my = e.clientY - cr.top - zt
-    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100)
+    const halfX = printScale / 2
+    const halfY = (printScale / 100 * zw / printAspect) / zh * 50
+    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100, halfX, halfY)
     const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
     const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
     if (snapX) newPos.x = 50
@@ -219,7 +229,7 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
         rafRef.current = null
       })
     }
-  }, [isDragging, isResizing, resizeStartPos, resizeStartScale, currentZone, imageRect, constrainPos])
+  }, [isDragging, isResizing, resizeStartPos, resizeStartScale, currentZone, imageRect, constrainPos, printScale, printAspect])
 
   const handleMouseUp = () => {
     setIsDragging(false)
