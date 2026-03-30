@@ -54,6 +54,19 @@ interface PrintData {
   id: string
   name: string
   image_url: string | null
+  category_id: number | null
+  subcategory_id: number | null
+}
+
+interface PrintCategoryData {
+  id: number
+  name: string
+}
+
+interface PrintSubcategoryData {
+  id: number
+  name: string
+  print_category_id: number
 }
 
 interface BaseData {
@@ -91,6 +104,8 @@ interface ConstructorClientProps {
   colors: ColorData[]
   sizes: SizeData[]
   prints: PrintData[]
+  printCategories: PrintCategoryData[]
+  printSubcategories: PrintSubcategoryData[]
 }
 
 // Add to cart imports
@@ -133,7 +148,7 @@ function uid() {
 // Component
 // ---------------------------------------------------------------------------
 
-export function ConstructorClient({ base: initialBase, images: initialImages, colors: initialColors, prints, sizes: initialSizes }: ConstructorClientProps) {
+export function ConstructorClient({ base: initialBase, images: initialImages, colors: initialColors, prints, printCategories, printSubcategories, sizes: initialSizes }: ConstructorClientProps) {
   // Dynamic base state (changes when user picks a new base)
   const [currentBase, setCurrentBase] = useState(initialBase)
   const [allImages, setAllImages] = useState(initialImages)
@@ -1001,7 +1016,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
             <ImageTab onUpload={handleImageUpload} />
           )}
           {activeTab === "print" && (
-            <PrintTab prints={prints} onSelect={handleAddPrint} />
+            <PrintTab prints={prints} categories={printCategories} subcategories={printSubcategories} onSelect={handleAddPrint} />
           )}
           {activeTab === "text" && (
             <TextTab
@@ -1662,23 +1677,102 @@ function ImageTab({ onUpload }: { onUpload: (e: React.ChangeEvent<HTMLInputEleme
   )
 }
 
-function PrintTab({ prints, onSelect }: { prints: PrintData[]; onSelect: (p: PrintData) => void }) {
+function PrintTab({ prints, categories, subcategories, onSelect }: {
+  prints: PrintData[]
+  categories: PrintCategoryData[]
+  subcategories: PrintSubcategoryData[]
+  onSelect: (p: PrintData) => void
+}) {
   const [search, setSearch] = useState("")
-  const filtered = prints.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const [selectedCatId, setSelectedCatId] = useState<number | null>(null)
+  const [selectedSubcatId, setSelectedSubcatId] = useState<number | null>(null)
+
+  const visibleSubcats = selectedCatId
+    ? subcategories.filter((s) => s.print_category_id === selectedCatId)
+    : []
+
+  const filtered = prints.filter((p) => {
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (selectedCatId && p.category_id !== selectedCatId) return false
+    if (selectedSubcatId && p.subcategory_id !== selectedSubcatId) return false
+    return true
+  })
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="relative">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={"\u041f\u043e\u0448\u0443\u043a \u043f\u0440\u0438\u043d\u0442\u0456\u0432..."}
-          className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
+    <div className="flex flex-col gap-3">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={"\u041f\u043e\u0448\u0443\u043a \u043f\u0440\u0438\u043d\u0442\u0456\u0432..."}
+        className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+
+      {/* Category filter */}
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => { setSelectedCatId(null); setSelectedSubcatId(null) }}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+              selectedCatId === null
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            )}
+          >
+            {"\u0412\u0441\u0456"}
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => {
+                setSelectedCatId(cat.id === selectedCatId ? null : cat.id)
+                setSelectedSubcatId(null)
+              }}
+              className={cn(
+                "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                selectedCatId === cat.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              )}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Subcategory filter */}
+      {visibleSubcats.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setSelectedSubcatId(null)}
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+              selectedSubcatId === null
+                ? "border-primary/60 bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {"\u0412\u0441\u0456"}
+          </button>
+          {visibleSubcats.map((sub) => (
+            <button
+              key={sub.id}
+              onClick={() => setSelectedSubcatId(sub.id === selectedSubcatId ? null : sub.id)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
+                selectedSubcatId === sub.id
+                  ? "border-primary/60 bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {sub.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           {"\u041f\u0440\u0438\u043d\u0442\u0456\u0432 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
@@ -1692,11 +1786,19 @@ function PrintTab({ prints, onSelect }: { prints: PrintData[]; onSelect: (p: Pri
               className="group flex flex-col items-center gap-1.5 rounded-xl border border-border p-2 transition-all hover:border-primary/40 hover:bg-muted/50 hover:shadow-sm"
             >
               {p.image_url ? (
-                <img
-                  src={p.image_url}
-                  alt={p.name}
-                  className="h-16 w-16 rounded-lg object-contain"
-                />
+                <div
+                  className="flex h-16 w-16 items-center justify-center rounded-lg"
+                  style={{
+                    backgroundImage: "conic-gradient(#e5e5e5 25%, #fff 25% 50%, #e5e5e5 50% 75%, #fff 75%)",
+                    backgroundSize: "10px 10px",
+                  }}
+                >
+                  <img
+                    src={p.image_url}
+                    alt={p.name}
+                    className="h-16 w-16 rounded-lg object-contain"
+                  />
+                </div>
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                   <Paintbrush className="h-5 w-5" />

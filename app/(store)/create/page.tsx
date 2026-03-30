@@ -49,14 +49,22 @@ export default async function ConstructorPage() {
       .eq("base_id", baseRow.id),
     supabase
       .from("print_designs")
-      .select("id, name, image_url")
-      .order("name")
-      .limit(50),
+      .select("id, name, image_url, print_category_id, print_subcategory_id")
+      .order("name"),
     supabase
       .from("base_sizes")
       .select("size_id, price, sizes:size_id(id, name, sort_order)")
       .eq("base_id", baseRow.id),
   ])
+
+  // Fetch print categories & subcategories in parallel with zones
+  const [printCatsRes, printSubcatsRes] = await Promise.all([
+    supabase.from("print_categories").select("id, name").order("name"),
+    supabase.from("print_subcategories").select("id, name, print_category_id").order("name"),
+  ])
+
+  const printCategories = (printCatsRes.data ?? []) as Array<{ id: number; name: string }>
+  const printSubcategories = (printSubcatsRes.data ?? []) as Array<{ id: number; name: string; print_category_id: number }>
 
   const rawImages = (imagesRes.data ?? []) as Array<{
     id: number; base_id: number; url: string; sort_order: number; color_id: number | null
@@ -116,11 +124,13 @@ export default async function ConstructorPage() {
     }))
 
   const prints = ((printsRes.data ?? []) as Array<{
-    id: number; name: string; image_url: string | null
+    id: number; name: string; image_url: string | null; print_category_id: number | null; print_subcategory_id: number | null
   }>).map((p) => ({
     id: String(p.id),
     name: p.name,
     image_url: p.image_url,
+    category_id: p.print_category_id,
+    subcategory_id: p.print_subcategory_id,
   }))
 
   const sizes = ((sizesRes.data ?? []) as unknown as Array<{
@@ -145,7 +155,7 @@ export default async function ConstructorPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <StoreBreadcrumb items={[{ label: "\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440" }]} />
-      <ConstructorClient base={base} images={images} colors={colors} prints={prints} sizes={sizes} />
+      <ConstructorClient base={base} images={images} colors={colors} prints={prints} printCategories={printCategories} printSubcategories={printSubcategories} sizes={sizes} />
     </div>
   )
 }
