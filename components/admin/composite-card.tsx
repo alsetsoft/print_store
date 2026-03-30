@@ -155,26 +155,58 @@ export function CompositeCard({
         ctx.drawImage(pImg, px, py, pw, ph)
       }
 
+      // Helper to draw a print using placement data (x/y/scale/mirror)
+      const drawPrintWithPlacement = (pImg: HTMLImageElement, zone: Zone, placement: PrintPlacement) => {
+        const zx = ox + (zone.x / 100) * w
+        const zy = oy + (zone.y / 100) * h
+        const zw = (zone.width / 100) * w
+        const zh = (zone.height / 100) * h
+        const px = placement.x / 100
+        const py = placement.y / 100
+        const ps = placement.scale / 100
+        const printRatio = pImg.naturalWidth / pImg.naturalHeight
+        const zoneRatio = zw / zh
+        let basePw: number, basePh: number
+        if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
+        else { basePh = zh; basePw = zh * printRatio }
+        const pw = basePw * ps
+        const ph = basePh * ps
+        const finalX = zx + px * zw - pw / 2
+        const finalY = zy + py * zh - ph / 2
+        ctx.save()
+        if (placement.is_mirrored) {
+          ctx.translate(finalX + pw / 2, 0)
+          ctx.scale(-1, 1)
+          ctx.drawImage(pImg, -pw / 2, finalY, pw, ph)
+        } else {
+          ctx.drawImage(pImg, finalX, finalY, pw, ph)
+        }
+        ctx.restore()
+      }
+
       // Multi-zone rendering path (when multiZoneSelection is provided, always use this path)
       if (hasMultiZoneSelection) {
-        const printSources: { url: string; zone: Zone }[] = []
+        const parsedPlacements = JSON.parse(placementsJson) as Record<string, PrintPlacement>
+        const printSources: { url: string; zone: Zone; zoneId: string }[] = []
         for (const entry of parsedMultiZoneEntries) {
           const zone = parsedAllZones.find((z) => z.id === entry.zoneId)
           if (!zone) continue
           // Primary zone (no printId) uses product print, additional zones use their own printImageUrl
           const url = entry.printId ? entry.printImageUrl : print.image_url
-          if (url) printSources.push({ url, zone })
+          if (url) printSources.push({ url, zone, zoneId: entry.zoneId })
         }
-        let loaded = 0
         if (printSources.length === 0) return
         for (const src of printSources) {
           const pImg = new Image()
           pImg.crossOrigin = "anonymous"
           pImg.src = src.url
           pImg.onload = () => {
-            drawPrintInZone(pImg, src.zone)
-            loaded++
-            // No need to wait — each draws independently into its own zone area
+            const placement = parsedPlacements[src.zoneId]
+            if (placement) {
+              drawPrintWithPlacement(pImg, src.zone, placement)
+            } else {
+              drawPrintInZone(pImg, src.zone)
+            }
           }
         }
         return
@@ -182,11 +214,6 @@ export function CompositeCard({
 
       // Single-zone rendering path (existing behavior)
       if (!parsedSelectedZone || !print.image_url) return
-
-      const zx = ox + (parsedSelectedZone.x / 100) * w
-      const zy = oy + (parsedSelectedZone.y / 100) * h
-      const zw = (parsedSelectedZone.width / 100) * w
-      const zh = (parsedSelectedZone.height / 100) * h
 
       const printImg = new Image()
       printImg.crossOrigin = "anonymous"
@@ -198,49 +225,16 @@ export function CompositeCard({
         const placement = parsedSelectedZone && parsedPlacements[parsedSelectedZone.id]
 
         if (placement) {
-          const px = placement.x / 100
-          const py = placement.y / 100
-          const ps = placement.scale / 100
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let basePw: number, basePh: number
-          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
-          else { basePh = zh; basePw = zh * printRatio }
-          const pw = basePw * ps
-          const ph = basePh * ps
-          const finalX = zx + px * zw - pw / 2
-          const finalY = zy + py * zh - ph / 2
-          ctx.save()
-          if (placement.is_mirrored) {
-            ctx.translate(finalX + pw / 2, 0)
-            ctx.scale(-1, 1)
-            ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
-          } else {
-            ctx.drawImage(printImg, finalX, finalY, pw, ph)
-          }
-          ctx.restore()
+          drawPrintWithPlacement(printImg, parsedSelectedZone, placement)
         } else if (parsedPrintConfig) {
-          const px = parsedPrintConfig.x / 100
-          const py = parsedPrintConfig.y / 100
-          const ps = parsedPrintConfig.scale / 100
-          const printRatio = printImg.naturalWidth / printImg.naturalHeight
-          const zoneRatio = zw / zh
-          let basePw: number, basePh: number
-          if (printRatio > zoneRatio) { basePw = zw; basePh = zw / printRatio }
-          else { basePh = zh; basePw = zh * printRatio }
-          const pw = basePw * ps
-          const ph = basePh * ps
-          const finalX = zx + px * zw - pw / 2
-          const finalY = zy + py * zh - ph / 2
-          ctx.save()
-          if (parsedPrintConfig.flipped) {
-            ctx.translate(finalX + pw / 2, 0)
-            ctx.scale(-1, 1)
-            ctx.drawImage(printImg, -pw / 2, finalY, pw, ph)
-          } else {
-            ctx.drawImage(printImg, finalX, finalY, pw, ph)
-          }
-          ctx.restore()
+          // Convert printConfig to placement format for rendering
+          drawPrintWithPlacement(printImg, parsedSelectedZone, {
+            zone_id: parsedSelectedZone.id,
+            x: parsedPrintConfig.x,
+            y: parsedPrintConfig.y,
+            scale: parsedPrintConfig.scale,
+            is_mirrored: !!parsedPrintConfig.flipped,
+          })
         } else {
           drawPrintInZone(printImg, parsedSelectedZone)
         }
