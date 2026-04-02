@@ -1,11 +1,12 @@
 import Link from "next/link"
-import { Shirt, Search, Pencil } from "lucide-react"
+import { Shirt, Pencil } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { UA } from "@/lib/translations"
 import { CatalogMenu } from "./catalog-menu"
 import { PrintsMenu } from "./prints-menu"
 import { MobileMenu } from "./mobile-menu"
 import { CartButton } from "./cart-button"
+import { GlobalSearch } from "./global-search"
 
 export async function SiteHeader() {
   const supabase = await createClient()
@@ -66,14 +67,7 @@ export async function SiteHeader() {
 
         {/* Search + Cart */}
         <div className="hidden items-center gap-3 md:flex">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder={UA.store.search}
-              className="h-9 w-56 rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+          <GlobalSearch />
           <CartButton />
         </div>
 

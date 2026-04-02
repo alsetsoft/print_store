@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { Paintbrush, Shirt, Search, Pencil, Menu } from "lucide-react"
+import { Paintbrush, Shirt, Pencil, Menu } from "lucide-react"
 import { UA } from "@/lib/translations"
+import { GlobalSearch } from "./global-search"
 import {
   Sheet,
   SheetTrigger,
@@ -67,14 +68,7 @@ export function MobileMenu({ categories, subcategories, groups, printCategories,
         </SheetHeader>
 
         <div className="px-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder={UA.store.search}
-              className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+          <GlobalSearch />
         </div>
 
         <nav className="flex flex-col gap-1 px-4">
