@@ -9,7 +9,7 @@ import { ProductCard } from "@/components/store/product-card"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
-type Group = { id: number; name: string; base_subcategory_id: number | null }
+type Group = { id: number; name: string; base_category_id: number | null; base_subcategory_id: number | null }
 
 type Product = {
   id: number

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
-type Group = { id: number; name: string; base_subcategory_id: number | null }
+type Group = { id: number; name: string; base_category_id: number | null; base_subcategory_id: number | null }
 
 interface CatalogSidebarProps {
   categories: Category[]
@@ -103,8 +103,8 @@ export function CatalogSidebar({
               </button>
             ))}
 
-            {/* Інше — always shown */}
-            <OrphanGroupsSection groups={groups} />
+            {/* Інше — orphan groups + groups belonging to this category without subcategory */}
+            <OrphanGroupsSection groups={groups} activeCategoryId={activeCategoryId} />
           </>
         ) : (
           categories.map((cat) => (
@@ -123,9 +123,12 @@ export function CatalogSidebar({
   )
 }
 
-function OrphanGroupsSection({ groups }: { groups: Group[] }) {
+function OrphanGroupsSection({ groups, activeCategoryId }: { groups: Group[]; activeCategoryId: number | null }) {
   const [expanded, setExpanded] = useState(false)
-  const orphanGroups = groups.filter((g) => g.base_subcategory_id === null)
+  const orphanGroups = groups.filter((g) =>
+    g.base_subcategory_id === null &&
+    (g.base_category_id === null || g.base_category_id === activeCategoryId)
+  )
 
   return (
     <>

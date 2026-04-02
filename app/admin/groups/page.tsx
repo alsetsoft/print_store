@@ -3,12 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
-  Plus, Search, Trash2, Check, X, FolderTree, Package, Layers,
-  CheckSquare, Filter, ArrowLeft, Pencil, XCircle
+  Plus, Search, Trash2, Check, X, FolderTree, Package,
+  CheckSquare, ArrowLeft, Pencil, XCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { decodeLabel } from "@/app/admin/parameters/actions"
 import { DeleteConfirmDialog } from "@/components/admin/delete-confirm-dialog"
+
+interface BaseCategory {
+  id: number
+  name: string
+}
 
 interface BaseSubcategory {
   id: number
@@ -28,8 +33,10 @@ interface Group {
   id: number
   name: string
   description: string | null
+  base_category_id: number | null
   base_subcategory_id: number | null
   print_subcategory_id: number | null
+  base_categories?: { id: number; name: string }
   base_subcategories?: { id: number; name: string }
   print_subcategories?: { id: number; name: string }
   product_count?: number
@@ -181,6 +188,7 @@ type ViewMode = "list" | "form"
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([])
+  const [baseCategories, setBaseCategories] = useState<BaseCategory[]>([])
   const [baseSubcategories, setBaseSubcategories] = useState<BaseSubcategory[]>([])
   const [printSubcategories, setPrintSubcategories] = useState<PrintSubcategory[]>([])
   const [allBases, setAllBases] = useState<Base[]>([])
@@ -192,7 +200,7 @@ export default function GroupsPage() {
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>("list")
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
-  const [formData, setFormData] = useState({ name: "", description: "", baseSubcategoryId: "", printSubcategoryId: "" })
+  const [formData, setFormData] = useState({ name: "", description: "", baseCategoryId: "", baseSubcategoryId: "" })
 
   // Product selection state
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([])
@@ -212,6 +220,7 @@ export default function GroupsPage() {
     setLoading(true)
 
     const [
+      { data: baseCats },
       { data: baseSubs },
       { data: printSubs },
       { data: groupsData },
@@ -219,14 +228,16 @@ export default function GroupsPage() {
       { data: printsData },
       { data: productsData }
     ] = await Promise.all([
+      supabase.from("base_categories").select("id, name").order("name"),
       supabase.from("base_subcategories").select("id, name, base_category_id, base_categories:base_category_id(name)").order("name"),
       supabase.from("print_subcategories").select("id, name, print_category_id, print_categories:print_category_id(name)").order("name"),
-      supabase.from("groups").select(`id, name, description, base_subcategory_id, print_subcategory_id, base_subcategories:base_subcategory_id(id, name), print_subcategories:print_subcategory_id(id, name)`).order("created_at", { ascending: false }),
+      supabase.from("groups").select(`id, name, description, base_category_id, base_subcategory_id, print_subcategory_id, base_categories:base_category_id(id, name), base_subcategories:base_subcategory_id(id, name), print_subcategories:print_subcategory_id(id, name)`).order("created_at", { ascending: false }),
       supabase.from("bases").select("id, name, image_url, base_subcategory_id, base_subcategories:base_subcategory_id(id, name)").order("name"),
       supabase.from("print_designs").select("id, name, image_url, print_subcategory_id, print_subcategories:print_subcategory_id(id, name)").order("name"),
       supabase.from("products").select(`id, name, base_id, print_id, bases:base_id(id, name, image_url, base_subcategory_id), print_designs:print_id(id, name, image_url, print_subcategory_id)`).order("created_at", { ascending: false })
     ])
 
+    if (baseCats) setBaseCategories(baseCats as BaseCategory[])
     if (baseSubs) setBaseSubcategories(baseSubs as BaseSubcategory[])
     if (printSubs) setPrintSubcategories(printSubs as PrintSubcategory[])
     if (basesData) setAllBases(basesData as Base[])
@@ -311,7 +322,7 @@ export default function GroupsPage() {
   // Switch to create form
   const openCreateForm = () => {
     setEditingGroup(null)
-    setFormData({ name: "", description: "", baseSubcategoryId: "", printSubcategoryId: "" })
+    setFormData({ name: "", description: "", baseCategoryId: "", baseSubcategoryId: "" })
     setSelectedProductIds([])
     setFilterBaseSubcategoryId("")
     setFilterPrintSubcategoryId("")
@@ -326,8 +337,8 @@ export default function GroupsPage() {
     setFormData({
       name: group.name,
       description: group.description || "",
+      baseCategoryId: group.base_category_id?.toString() || "",
       baseSubcategoryId: group.base_subcategory_id?.toString() || "",
-      printSubcategoryId: group.print_subcategory_id?.toString() || "",
     })
     setFilterBaseSubcategoryId(group.base_subcategory_id?.toString() || "")
     setFilterPrintSubcategoryId(group.print_subcategory_id?.toString() || "")
@@ -353,7 +364,7 @@ export default function GroupsPage() {
     let filtered = allProducts
 
     const baseSubcatId = formData.baseSubcategoryId || filterBaseSubcategoryId
-    const printSubcatId = formData.printSubcategoryId || filterPrintSubcategoryId
+    const printSubcatId = filterPrintSubcategoryId
 
     if (baseSubcatId) {
       filtered = filtered.filter(p => p.bases?.base_subcategory_id === parseInt(baseSubcatId))
@@ -377,7 +388,6 @@ export default function GroupsPage() {
   const filteredProducts = getFilteredProducts()
 
   const isBaseFilterDisabled = !!formData.baseSubcategoryId
-  const isPrintFilterDisabled = !!formData.printSubcategoryId
 
   const toggleProductSelection = (productId: number) => {
     setSelectedProductIds(prev =>
@@ -409,8 +419,9 @@ export default function GroupsPage() {
         .update({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
+          base_category_id: formData.baseCategoryId ? parseInt(formData.baseCategoryId) : null,
           base_subcategory_id: formData.baseSubcategoryId ? parseInt(formData.baseSubcategoryId) : null,
-          print_subcategory_id: formData.printSubcategoryId ? parseInt(formData.printSubcategoryId) : null,
+          print_subcategory_id: null,
         })
         .eq("id", editingGroup.id)
 
@@ -430,8 +441,9 @@ export default function GroupsPage() {
         .insert({
           name: formData.name.trim(),
           description: formData.description.trim() || null,
+          base_category_id: formData.baseCategoryId ? parseInt(formData.baseCategoryId) : null,
           base_subcategory_id: formData.baseSubcategoryId ? parseInt(formData.baseSubcategoryId) : null,
-          print_subcategory_id: formData.printSubcategoryId ? parseInt(formData.printSubcategoryId) : null,
+          print_subcategory_id: null,
         })
         .select()
         .single()
@@ -557,17 +569,6 @@ export default function GroupsPage() {
                       <div className="flex items-center gap-2 text-muted-foreground/50">
                         <Package className="h-4 w-4 shrink-0" />
                         <span className="italic">{"\u0411\u0435\u0437 \u0444\u0456\u043B\u044C\u0442\u0440\u0443 \u043E\u0441\u043D\u043E\u0432\u0438"}</span>
-                      </div>
-                    )}
-                    {group.print_subcategories ? (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Layers className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{"\u041F\u0440\u0438\u043D\u0442"}: {group.print_subcategories.name}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-muted-foreground/50">
-                        <Layers className="h-4 w-4 shrink-0" />
-                        <span className="italic">{"\u0411\u0435\u0437 \u0444\u0456\u043B\u044C\u0442\u0440\u0443 \u043F\u0440\u0438\u043D\u0442\u0430"}</span>
                       </div>
                     )}
                   </div>
@@ -731,45 +732,47 @@ export default function GroupsPage() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{"\u041F\u0456\u0434\u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0456\u0457"}</p>
+              <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{"\u041A\u0430\u0442\u0435\u0433\u043E\u0440\u0456\u044F"}</p>
 
-              {/* Base subcategory */}
+              {/* Base category */}
               <div className="mb-3">
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">{"\u041E\u0441\u043D\u043E\u0432\u0430"}</label>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">{"\u041A\u0430\u0442\u0435\u0433\u043E\u0440\u0456\u044F \u043E\u0441\u043D\u043E\u0432\u0438"}</label>
+                <select
+                  value={formData.baseCategoryId}
+                  onChange={(e) => {
+                    setFormData({ ...formData, baseCategoryId: e.target.value, baseSubcategoryId: "" })
+                    setFilterBaseSubcategoryId("")
+                  }}
+                  className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">{"\u0411\u0435\u0437 \u043E\u0431\u043C\u0435\u0436\u0435\u043D\u043D\u044F"}</option>
+                  {baseCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Base subcategory — filtered by selected category */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">{"\u041F\u0456\u0434\u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0456\u044F \u043E\u0441\u043D\u043E\u0432\u0438"}</label>
                 <select
                   value={formData.baseSubcategoryId}
                   onChange={(e) => {
                     setFormData({ ...formData, baseSubcategoryId: e.target.value })
                     if (e.target.value) setFilterBaseSubcategoryId(e.target.value)
                   }}
-                  className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  disabled={!formData.baseCategoryId}
+                  className={cn(
+                    "w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary",
+                    !formData.baseCategoryId && "opacity-60 cursor-not-allowed bg-muted"
+                  )}
                 >
                   <option value="">{"\u0411\u0435\u0437 \u043E\u0431\u043C\u0435\u0436\u0435\u043D\u043D\u044F"}</option>
-                  {baseSubcategories.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.base_categories?.name ? `${sub.base_categories.name} / ` : ""}{sub.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Print subcategory */}
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">{"\u041F\u0440\u0438\u043D\u0442"}</label>
-                <select
-                  value={formData.printSubcategoryId}
-                  onChange={(e) => {
-                    setFormData({ ...formData, printSubcategoryId: e.target.value })
-                    if (e.target.value) setFilterPrintSubcategoryId(e.target.value)
-                  }}
-                  className="w-full rounded-lg border border-input bg-background px-2.5 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">{"\u0411\u0435\u0437 \u043E\u0431\u043C\u0435\u0436\u0435\u043D\u043D\u044F"}</option>
-                  {printSubcategories.map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.print_categories?.name ? `${sub.print_categories.name} / ` : ""}{sub.name}
-                    </option>
-                  ))}
+                  {baseSubcategories
+                    .filter((sub) => formData.baseCategoryId ? sub.base_category_id === parseInt(formData.baseCategoryId) : true)
+                    .map((sub) => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -853,13 +856,9 @@ export default function GroupsPage() {
 
                 <div className="relative">
                   <select
-                    value={isPrintFilterDisabled ? formData.printSubcategoryId : filterPrintSubcategoryId}
+                    value={filterPrintSubcategoryId}
                     onChange={(e) => setFilterPrintSubcategoryId(e.target.value)}
-                    disabled={isPrintFilterDisabled}
-                    className={cn(
-                      "rounded-lg border border-input bg-background px-2.5 py-1.5 pr-7 text-xs focus:border-primary focus:outline-none",
-                      isPrintFilterDisabled && "opacity-60 cursor-not-allowed bg-muted"
-                    )}
+                    className="rounded-lg border border-input bg-background px-2.5 py-1.5 pr-7 text-xs focus:border-primary focus:outline-none"
                   >
                     <option value="">{"\u0412\u0441\u0456 \u043F\u0440\u0438\u043D\u0442\u0438"}</option>
                     {printSubcategories.map((sub) => (
@@ -868,11 +867,6 @@ export default function GroupsPage() {
                       </option>
                     ))}
                   </select>
-                  {isPrintFilterDisabled && (
-                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                      <Check className="h-2.5 w-2.5" />
-                    </span>
-                  )}
                 </div>
               </>
             )}

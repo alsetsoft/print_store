@@ -38,7 +38,7 @@ export default async function CatalogPage({
   const [categoriesRes, subcategoriesRes, groupsRes] = await Promise.all([
     supabase.from("base_categories").select("id, name").order("id"),
     supabase.from("base_subcategories").select("id, name, base_category_id").order("id"),
-    supabase.from("groups").select("id, name, base_subcategory_id").order("name"),
+    supabase.from("groups").select("id, name, base_category_id, base_subcategory_id").order("name"),
   ])
 
   const categories = categoriesRes.data ?? []
