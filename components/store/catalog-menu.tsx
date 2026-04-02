@@ -118,11 +118,32 @@ export function CatalogMenu({ categories, subcategories, groups }: CatalogMenuPr
                 </div>
               )
             })}
-            {subcatsForCategory.length === 0 && (
-              <p className="col-span-full text-sm text-muted-foreground">
-                {"\u041f\u0456\u0434\u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u0457 \u0432\u0456\u0434\u0441\u0443\u0442\u043d\u0456"}
-              </p>
-            )}
+            {/* Інше — hardcoded for every category */}
+            <div>
+              <h3 className="mb-2 text-sm font-bold uppercase tracking-wide text-foreground">
+                {"\u0406\u043d\u0448\u0435"}
+              </h3>
+              <ul className="space-y-1.5">
+                {groups
+                  .filter((g) => g.base_subcategory_id === null)
+                  .map((group) => (
+                    <li key={group.id}>
+                      <Link
+                        href={`/group/${group.id}`}
+                        className="text-sm text-muted-foreground transition-colors hover:text-primary"
+                        onClick={() => setOpen(false)}
+                      >
+                        {group.name}
+                      </Link>
+                    </li>
+                  ))}
+                {groups.filter((g) => g.base_subcategory_id === null).length === 0 && (
+                  <li className="text-xs text-muted-foreground/60 italic">
+                    {"\u0429\u0435 \u043d\u0435\u043c\u0430\u0454 \u0433\u0440\u0443\u043f"}
+                  </li>
+                )}
+              </ul>
+            </div>
           </div>
         </div>
       )}

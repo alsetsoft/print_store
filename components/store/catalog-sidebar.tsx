@@ -1,15 +1,18 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { ArrowLeft, ChevronRight, Search } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
+type Group = { id: number; name: string; base_subcategory_id: number | null }
 
 interface CatalogSidebarProps {
   categories: Category[]
   subcategories: Subcategory[]
+  groups: Group[]
   activeCategoryId: number | null
   activeSubcategoryId: number | null
   onCategoryChange: (id: number | null) => void
@@ -21,6 +24,7 @@ interface CatalogSidebarProps {
 export function CatalogSidebar({
   categories,
   subcategories,
+  groups,
   activeCategoryId,
   activeSubcategoryId,
   onCategoryChange,
@@ -98,6 +102,9 @@ export function CatalogSidebar({
                 <ChevronRight className="size-3.5 text-muted-foreground" />
               </button>
             ))}
+
+            {/* Інше — always shown */}
+            <OrphanGroupsSection groups={groups} />
           </>
         ) : (
           categories.map((cat) => (
@@ -113,5 +120,51 @@ export function CatalogSidebar({
         )}
       </nav>
     </aside>
+  )
+}
+
+function OrphanGroupsSection({ groups }: { groups: Group[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const orphanGroups = groups.filter((g) => g.base_subcategory_id === null)
+
+  return (
+    <>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className={cn(
+          "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
+          expanded
+            ? "bg-primary/10 font-medium text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground"
+        )}
+      >
+        {"\u0406\u043d\u0448\u0435"}
+        <ChevronDown
+          className={cn(
+            "size-3.5 text-muted-foreground transition-transform duration-200",
+            expanded && "rotate-180"
+          )}
+        />
+      </button>
+      {expanded && (
+        <div className="ml-3 space-y-0.5 border-l pl-3">
+          {orphanGroups.length > 0 ? (
+            orphanGroups.map((group) => (
+              <Link
+                key={group.id}
+                href={`/group/${group.id}`}
+                className="block rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                {group.name}
+              </Link>
+            ))
+          ) : (
+            <p className="px-3 py-1.5 text-xs text-muted-foreground/60 italic">
+              {"\u0429\u0435 \u043d\u0435\u043c\u0430\u0454 \u0433\u0440\u0443\u043f"}
+            </p>
+          )}
+        </div>
+      )}
+    </>
   )
 }

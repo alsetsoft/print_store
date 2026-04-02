@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/store/product-card"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
+type Group = { id: number; name: string; base_subcategory_id: number | null }
 
 type Product = {
   id: number
@@ -24,6 +25,7 @@ type Product = {
 interface CatalogPageClientProps {
   categories: Category[]
   subcategories: Subcategory[]
+  groups: Group[]
   products: Product[]
   totalCount: number
   page: number
@@ -36,6 +38,7 @@ interface CatalogPageClientProps {
 export function CatalogPageClient({
   categories,
   subcategories,
+  groups,
   products,
   totalCount,
   page,
@@ -92,6 +95,7 @@ export function CatalogPageClient({
         <CatalogSidebar
           categories={categories}
           subcategories={subcategories}
+          groups={groups}
           activeCategoryId={initialCategoryId}
           activeSubcategoryId={initialSubcategoryId}
           onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}

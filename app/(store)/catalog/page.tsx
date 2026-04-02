@@ -34,14 +34,16 @@ export default async function CatalogPage({
   const subcategoryId = params.subcategory ? parseInt(params.subcategory) : null
   const searchQuery = params.q?.trim() ?? ""
 
-  // Fetch categories & subcategories (small, always needed)
-  const [categoriesRes, subcategoriesRes] = await Promise.all([
+  // Fetch categories, subcategories & groups (small, always needed)
+  const [categoriesRes, subcategoriesRes, groupsRes] = await Promise.all([
     supabase.from("base_categories").select("id, name").order("id"),
     supabase.from("base_subcategories").select("id, name, base_category_id").order("id"),
+    supabase.from("groups").select("id, name, base_subcategory_id").order("name"),
   ])
 
   const categories = categoriesRes.data ?? []
   const subcategories = subcategoriesRes.data ?? []
+  const groups = groupsRes.data ?? []
 
   // Build filtered product query
   // We need to filter by base category/subcategory which lives on the `bases` relation.
@@ -103,6 +105,7 @@ export default async function CatalogPage({
           <CatalogPageClient
             categories={categories}
             subcategories={subcategories}
+            groups={groups}
             products={[]}
             totalCount={0}
             page={page}
@@ -290,6 +293,7 @@ export default async function CatalogPage({
       <CatalogPageClient
         categories={categories}
         subcategories={subcategories}
+        groups={groups}
         products={enrichedProducts}
         totalCount={totalCount ?? 0}
         page={page}
