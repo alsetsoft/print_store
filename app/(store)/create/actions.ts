@@ -22,12 +22,13 @@ export async function generateDalleImage(prompt: string): Promise<{ imageUrl: st
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "dall-e-3",
-        prompt: prompt.trim(),
+        model: "gpt-image-1",
+        prompt: `Create an isolated object/character with NO background. The image must have a completely transparent background (alpha channel). Do not add any background color, scenery, shadows on the ground, or decorative elements behind the subject. The subject should float on a clean transparent canvas like a sticker or cutout. Subject: ${prompt.trim()}`,
         n: 1,
         size: "1024x1024",
-        quality: "standard",
-        response_format: "b64_json",
+        quality: "medium",
+        output_format: "png",
+        background: "transparent",
       }),
     })
 

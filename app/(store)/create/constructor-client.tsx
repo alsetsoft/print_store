@@ -2031,6 +2031,7 @@ function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [history, setHistory] = useState<{ url: string; prompt: string }[]>([])
 
   const handleGenerate = async () => {
     if (!prompt.trim() || loading) return
@@ -2044,8 +2045,14 @@ function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
       setError(result.error)
     } else {
       setPreviewUrl(result.imageUrl)
+      setHistory((prev) => [{ url: result.imageUrl, prompt: prompt.trim() }, ...prev])
     }
     setLoading(false)
+  }
+
+  const handleSelectFromHistory = (item: { url: string; prompt: string }) => {
+    setPreviewUrl(item.url)
+    setPrompt(item.prompt)
   }
 
   return (
@@ -2104,6 +2111,36 @@ function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
             <Check className="h-4 w-4" />
             {"\u0414\u043e\u0434\u0430\u0442\u0438 \u043d\u0430 \u0432\u0438\u0440\u0456\u0431"}
           </button>
+        </div>
+      )}
+
+      {history.length > 0 && (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">
+            {"\u0406\u0441\u0442\u043e\u0440\u0456\u044f \u0433\u0435\u043d\u0435\u0440\u0430\u0446\u0456\u0439"}
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {history.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSelectFromHistory(item)}
+                className={cn(
+                  "group relative aspect-square overflow-hidden rounded-lg border-2 transition-all hover:border-primary",
+                  previewUrl === item.url ? "border-primary ring-2 ring-primary/30" : "border-border"
+                )}
+                title={item.prompt}
+              >
+                <img
+                  src={item.url}
+                  alt={item.prompt}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-[10px] leading-tight text-white line-clamp-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {item.prompt}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
