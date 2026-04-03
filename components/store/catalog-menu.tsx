@@ -9,6 +9,7 @@ import { UA } from "@/lib/translations"
 type Group = {
   id: number
   name: string
+  base_category_id: number | null
   base_subcategory_id: number | null
 }
 
@@ -125,7 +126,7 @@ export function CatalogMenu({ categories, subcategories, groups }: CatalogMenuPr
               </h3>
               <ul className="space-y-1.5">
                 {groups
-                  .filter((g) => g.base_subcategory_id === null)
+                  .filter((g) => g.base_subcategory_id === null && (g.base_category_id === null || g.base_category_id === activeCategory))
                   .map((group) => (
                     <li key={group.id}>
                       <Link
@@ -137,7 +138,7 @@ export function CatalogMenu({ categories, subcategories, groups }: CatalogMenuPr
                       </Link>
                     </li>
                   ))}
-                {groups.filter((g) => g.base_subcategory_id === null).length === 0 && (
+                {groups.filter((g) => g.base_subcategory_id === null && (g.base_category_id === null || g.base_category_id === activeCategory)).length === 0 && (
                   <li className="text-xs text-muted-foreground/60 italic">
                     {"\u0429\u0435 \u043d\u0435\u043c\u0430\u0454 \u0433\u0440\u0443\u043f"}
                   </li>

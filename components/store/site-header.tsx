@@ -14,7 +14,7 @@ export async function SiteHeader() {
   const [categoriesRes, subcategoriesRes, groupsRes, printCategoriesRes, printSubcategoriesRes] = await Promise.all([
     supabase.from("base_categories").select("id, name").order("id"),
     supabase.from("base_subcategories").select("id, name, base_category_id").order("id"),
-    supabase.from("groups").select("id, name, base_subcategory_id").order("name"),
+    supabase.from("groups").select("id, name, base_category_id, base_subcategory_id").order("name"),
     supabase.from("print_categories").select("id, name").order("name"),
     supabase.from("print_subcategories").select("id, name, print_category_id").order("name"),
   ])
