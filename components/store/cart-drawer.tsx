@@ -1,7 +1,9 @@
 "use client"
 
-import { ShoppingCart, Minus, Plus, Trash2, ShoppingBag } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ShoppingCart, Minus, Plus, Trash2, ShoppingBag, Pencil } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
+import { CartItemPreview } from "@/components/store/cart-item-preview"
 import {
   Sheet,
   SheetContent,
@@ -14,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function CartDrawer() {
   const { items, totalItems, totalPrice, isOpen, setIsOpen, updateQuantity, removeItem } = useCart()
+  const router = useRouter()
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -50,17 +53,7 @@ export function CartDrawer() {
                   >
                     {/* Image */}
                     <div className="size-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="size-full object-contain p-1"
-                        />
-                      ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <ShoppingBag className="size-5 text-muted-foreground/30" />
-                        </div>
-                      )}
+                      <CartItemPreview item={item} size={128} className="size-full" />
                     </div>
 
                     {/* Info */}
@@ -69,7 +62,11 @@ export function CartDrawer() {
                         {item.name}
                       </p>
                       <p className="mt-0.5 text-[10px] uppercase text-muted-foreground">
-                        {item.type === "product" ? "\u0422\u043e\u0432\u0430\u0440" : "\u041e\u0441\u043d\u043e\u0432\u0430"}
+                        {item.type === "product"
+                          ? "\u0422\u043e\u0432\u0430\u0440"
+                          : item.type === "custom"
+                            ? "\u041a\u0430\u0441\u0442\u043e\u043c\u043d\u0438\u0439 \u0434\u0438\u0437\u0430\u0439\u043d"
+                            : "\u041e\u0441\u043d\u043e\u0432\u0430"}
                       </p>
 
                       <div className="mt-auto flex items-center justify-between pt-2">
@@ -96,6 +93,18 @@ export function CartDrawer() {
                             <span className="text-sm font-bold text-foreground">
                               {item.price * item.quantity} {"\u0433\u0440\u043d"}
                             </span>
+                          )}
+                          {item.type === "custom" && item.constructorState && (
+                            <button
+                              onClick={() => {
+                                localStorage.setItem("printmarket_edit_item", JSON.stringify(item))
+                                setIsOpen(false)
+                                router.push("/create")
+                              }}
+                              className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
                           )}
                           <button
                             onClick={() => removeItem(item.id, item.type)}

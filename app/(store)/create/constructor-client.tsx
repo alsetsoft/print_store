@@ -156,8 +156,13 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [currentSizes, setCurrentSizes] = useState(initialSizes)
   const [selectedSizeId, setSelectedSizeId] = useState<string | null>(initialSizes[0]?.id ?? null)
   const [basePickerOpen, setBasePickerOpen] = useState(false)
-  const { addItem } = useCart()
+  const { addItem, updateItem } = useCart()
   const router = useRouter()
+
+  // Edit mode — restore state from localStorage
+  const [editCartItemId, setEditCartItemId] = useState<string | null>(null)
+  const [editCartItemType, setEditCartItemType] = useState<"custom" | null>(null)
+  const editRestoredRef = useRef(false)
 
   // Color filter — defaults to first color that has images, or null (show all)
   const [selectedColorId, setSelectedColorId] = useState<string | null>(() => {
@@ -219,6 +224,46 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("center")
   const [qrInput, setQrInput] = useState("")
   const [fonts, setFonts] = useState(FONTS)
+
+  // -------------------------------------------------------------------------
+  // Restore edit state from localStorage
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (editRestoredRef.current) return
+    try {
+      const raw = localStorage.getItem("printmarket_edit_item")
+      if (!raw) return
+      localStorage.removeItem("printmarket_edit_item")
+      editRestoredRef.current = true
+
+      const cartItem = JSON.parse(raw)
+      if (!cartItem.constructorState) return
+
+      const cs = cartItem.constructorState
+      setEditCartItemId(cartItem.id)
+      setEditCartItemType(cartItem.type)
+
+      // Restore base if different
+      if (cs.baseId !== String(initialBase.id)) {
+        handleBaseChange(Number(cs.baseId)).then(() => {
+          // State is set inside handleBaseChange; restore elements after
+          setSelectedColorId(cs.colorId)
+          setSelectedSizeId(cs.sizeId)
+          setImgIndex(cs.imgIndex ?? 0)
+          setElements(cs.elements as CanvasElement[])
+        })
+      } else {
+        if (cs.colorId) setSelectedColorId(cs.colorId)
+        if (cs.sizeId) setSelectedSizeId(cs.sizeId)
+        if (cs.imgIndex != null) setImgIndex(cs.imgIndex)
+        setElements(cs.elements as CanvasElement[])
+      }
+    } catch {
+      // ignore parse errors
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // -------------------------------------------------------------------------
   // Measure image position within canvas
@@ -1199,50 +1244,136 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           </div>
 
           <button
-            onClick={() => {
-              // Generate preview from canvas
+            onClick={async () => {
+              // Generate preview — fetch images as blobs to avoid CORS taint
               let previewDataUrl: string | null = null
-              if (canvasRef.current) {
+              if (imageRef.current && imageRect) {
                 try {
+                  const S = 400
                   const tempCanvas = document.createElement("canvas")
+                  tempCanvas.width = S
+                  tempCanvas.height = S
                   const tempCtx = tempCanvas.getContext("2d")
-                  if (tempCtx && imageRef.current && imageRect) {
-                    tempCanvas.width = 400
-                    tempCanvas.height = 400
-                    const img = imageRef.current
-                    const ratio = img.naturalWidth / img.naturalHeight
+                  if (tempCtx) {
+                    // Helper: fetch image as blob and create an Image from it
+                    const loadImage = (url: string): Promise<HTMLImageElement> =>
+                      fetch(url)
+                        .then((r) => r.blob())
+                        .then((blob) => {
+                          const objUrl = URL.createObjectURL(blob)
+                          return new Promise<HTMLImageElement>((resolve, reject) => {
+                            const img = new Image()
+                            img.onload = () => { URL.revokeObjectURL(objUrl); resolve(img) }
+                            img.onerror = () => { URL.revokeObjectURL(objUrl); reject() }
+                            img.src = objUrl
+                          })
+                        })
+
+                    // Draw base image
+                    const baseImg = await loadImage(imageRef.current.src)
+                    const ratio = baseImg.naturalWidth / baseImg.naturalHeight
                     let rw: number, rh: number
-                    if (ratio > 1) { rw = 400; rh = 400 / ratio }
-                    else { rh = 400; rw = 400 * ratio }
-                    const ox = (400 - rw) / 2
-                    const oy = (400 - rh) / 2
-                    tempCtx.drawImage(img, ox, oy, rw, rh)
+                    if (ratio > 1) { rw = S; rh = S / ratio }
+                    else { rh = S; rw = S * ratio }
+                    const ox = (S - rw) / 2
+                    const oy = (S - rh) / 2
+                    tempCtx.drawImage(baseImg, ox, oy, rw, rh)
+
+                    // Draw design elements on top
+                    for (const el of elements) {
+                      const zone = allImages.flatMap((i) => i.zones).find((z) => z.id === el.zoneId)
+                      if (!zone) continue
+
+                      const zx = ox + (zone.x / 100) * rw
+                      const zy = oy + (zone.y / 100) * rh
+                      const zw = (zone.width / 100) * rw
+                      const zh = (zone.height / 100) * rh
+
+                      if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
+                        try {
+                          const elImg = await loadImage(el.imageUrl)
+                          const elRatio = elImg.naturalWidth / elImg.naturalHeight
+                          const pw = (el.scale / 100) * zw
+                          const ph = pw / elRatio
+                          const cx = zx + (el.position.x / 100) * zw
+                          const cy = zy + (el.position.y / 100) * zh
+
+                          tempCtx.save()
+                          if (el.flipped) {
+                            tempCtx.translate(cx, cy)
+                            tempCtx.scale(-1, 1)
+                            tempCtx.drawImage(elImg, -pw / 2, -ph / 2, pw, ph)
+                          } else {
+                            tempCtx.drawImage(elImg, cx - pw / 2, cy - ph / 2, pw, ph)
+                          }
+                          tempCtx.restore()
+                        } catch {
+                          // skip this element if fetch fails
+                        }
+                      } else if (el.type === "text" && el.text) {
+                        const fontSize = Math.max(8, (el.scale / 100) * zw * 0.3)
+                        tempCtx.save()
+                        tempCtx.font = `700 ${fontSize}px ${el.fontFamily ?? "sans-serif"}`
+                        tempCtx.fillStyle = el.textColor ?? "#000"
+                        tempCtx.textAlign = (el.textAlign as CanvasTextAlign) ?? "center"
+                        tempCtx.textBaseline = "middle"
+                        const tx = zx + (el.position.x / 100) * zw
+                        const ty = zy + (el.position.y / 100) * zh
+                        tempCtx.fillText(el.text, tx, ty)
+                        tempCtx.restore()
+                      }
+                    }
+
                     previewDataUrl = tempCanvas.toDataURL("image/jpeg", 0.7)
                   }
-                } catch {
-                  // CORS or other error, skip preview
+                } catch (e) {
+                  console.error("Preview generation failed:", e)
                 }
               }
 
               const selectedColor = currentColors.find((c) => c.id === selectedColorId)
               const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
 
-              addItem({
-                id: `custom-${Date.now()}`,
-                type: "custom",
-                name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
-                price: totalPrice,
-                imageUrl: currentImage?.url ?? null,
-                colorName: selectedColor?.name ?? undefined,
-                sizeName: selectedSize?.name ?? undefined,
-                previewDataUrl: previewDataUrl ?? undefined,
-              })
+              const constructorState = {
+                baseId: currentBase.id,
+                colorId: selectedColorId,
+                sizeId: selectedSizeId,
+                imgIndex: safeImgIndex,
+                elements: elements,
+              }
+
+              if (editCartItemId && editCartItemType) {
+                // Update existing cart item
+                updateItem(editCartItemId, editCartItemType, {
+                  name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+                  price: totalPrice,
+                  imageUrl: currentImage?.url ?? null,
+                  colorName: selectedColor?.name ?? undefined,
+                  sizeName: selectedSize?.name ?? undefined,
+                  previewDataUrl: previewDataUrl ?? undefined,
+                  constructorState,
+                })
+              } else {
+                addItem({
+                  id: `custom-${Date.now()}`,
+                  type: "custom",
+                  name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+                  price: totalPrice,
+                  imageUrl: currentImage?.url ?? null,
+                  colorName: selectedColor?.name ?? undefined,
+                  sizeName: selectedSize?.name ?? undefined,
+                  previewDataUrl: previewDataUrl ?? undefined,
+                  constructorState,
+                })
+              }
               router.push("/cart")
             }}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
           >
             <ShoppingCart className="size-4" />
-            {"\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
+            {editCartItemId
+              ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
+              : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
           </button>
         </div>
       </div>

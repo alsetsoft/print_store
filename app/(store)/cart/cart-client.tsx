@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, ShoppingCart } from "lucide-react"
+import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, ShoppingCart, Pencil } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
 
@@ -121,6 +121,20 @@ export function CartPageClient() {
                         <Plus className="size-3.5" />
                       </button>
                     </div>
+
+                    {/* Edit (custom designs only) */}
+                    {item.type === "custom" && item.constructorState && (
+                      <button
+                        onClick={() => {
+                          localStorage.setItem("printmarket_edit_item", JSON.stringify(item))
+                          router.push("/create")
+                        }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <Pencil className="size-3.5" />
+                        {"\u0420\u0435\u0434\u0430\u0433\u0443\u0432\u0430\u0442\u0438"}
+                      </button>
+                    )}
 
                     {/* Delete */}
                     <button

@@ -8,6 +8,26 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 
 export type CartItemType = "product" | "base" | "custom"
 
+export interface ConstructorState {
+  baseId: string
+  colorId: string | null
+  sizeId: string | null
+  imgIndex: number
+  elements: Array<{
+    id: string
+    type: string
+    zoneId: string
+    position: { x: number; y: number }
+    scale: number
+    flipped: boolean
+    imageUrl?: string
+    text?: string
+    textColor?: string
+    fontFamily?: string
+    textAlign?: string
+  }>
+}
+
 export interface CartItem {
   id: string
   type: CartItemType
@@ -23,6 +43,7 @@ export interface CartItem {
   colorName?: string
   sizeName?: string
   previewDataUrl?: string
+  constructorState?: ConstructorState
 }
 
 interface CartContextValue {
@@ -32,6 +53,7 @@ interface CartContextValue {
   addItem: (item: Omit<CartItem, "quantity">) => void
   removeItem: (id: string, type: CartItemType) => void
   updateQuantity: (id: string, type: CartItemType, quantity: number) => void
+  updateItem: (id: string, type: CartItemType, updates: Partial<Omit<CartItem, "quantity">>) => void
   clearCart: () => void
   isOpen: boolean
   setIsOpen: (open: boolean) => void
@@ -113,6 +135,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const updateItem = useCallback((id: string, type: CartItemType, updates: Partial<Omit<CartItem, "quantity">>) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id && i.type === type ? { ...i, ...updates } : i
+      )
+    )
+  }, [])
+
   const clearCart = useCallback(() => {
     setItems([])
   }, [])
@@ -129,6 +159,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         addItem,
         removeItem,
         updateQuantity,
+        updateItem,
         clearCart,
         isOpen,
         setIsOpen,
