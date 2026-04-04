@@ -69,27 +69,60 @@ function PrintSelectorDropdown({
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
-  const ref = useRef<HTMLDivElement>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (
+        panelRef.current && !panelRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false)
+        setSelectedCategory(null)
+      }
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  const filtered = prints.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const categories = Array.from(
+    new Set(prints.map((p) => p.print_categories?.name).filter(Boolean))
+  ) as string[]
+
+  const filtered = prints.filter((p) => {
+    const q = search.toLowerCase()
+    const matchesSearch = !q || p.name.toLowerCase().includes(q) || (p.print_categories?.name?.toLowerCase().includes(q) ?? false)
+    const matchesCategory = !selectedCategory || p.print_categories?.name === selectedCategory
+    return matchesSearch && matchesCategory
+  })
   const selected = prints.find((p) => p.id === selectedPrintId)
 
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      const panelW = 384 // w-96
+      const panelH = 400
+      let left = rect.left
+      let top = rect.bottom + 4
+      // Keep panel within viewport
+      if (left + panelW > window.innerWidth) left = window.innerWidth - panelW - 8
+      if (left < 8) left = 8
+      if (top + panelH > window.innerHeight) top = rect.top - panelH - 4
+      setPos({ top, left })
+    }
+    setOpen(!open)
+  }
+
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleOpen}
         className={cn(
-          "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-all",
+          "flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-all",
           selectedPrintId
             ? "border-primary bg-primary/5 text-foreground"
             : "border-amber-300 bg-amber-50 text-amber-700"
@@ -98,17 +131,21 @@ function PrintSelectorDropdown({
         {selected ? (
           <>
             {selected.image_url && (
-              <img src={selected.image_url} alt="" className="h-8 w-8 rounded object-cover" />
+              <img src={selected.image_url} alt="" className="h-5 w-5 rounded object-cover" />
             )}
-            <span className="max-w-[140px] truncate">{selected.name}</span>
+            <span className="max-w-[100px] truncate">{selected.name}</span>
           </>
         ) : (
-          "\u041E\u0431\u0440\u0430\u0442\u0438 \u043F\u0440\u0438\u043D\u0442..."
+          "\u041E\u0431\u0440\u0430\u0442\u0438 \u043F\u0440\u0438\u043D\u0442"
         )}
         <ChevronDown className="h-3 w-3 shrink-0" />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-96 rounded-lg border border-border bg-card shadow-xl">
+        <div
+          ref={panelRef}
+          className="fixed z-[100] w-96 rounded-lg border border-border bg-card shadow-xl"
+          style={{ top: pos.top, left: pos.left }}
+        >
           <div className="p-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -116,12 +153,41 @@ function PrintSelectorDropdown({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="\u041F\u043E\u0448\u0443\u043A..."
+                placeholder={"\u041F\u043E\u0448\u0443\u043A..."}
                 className="w-full rounded border border-input bg-background py-1.5 pl-8 pr-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 autoFocus
               />
             </div>
           </div>
+          {categories.length > 0 && (
+            <div className="flex gap-1 overflow-x-auto px-2 pb-1">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors",
+                  !selectedCategory
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                {"\u0412\u0441\u0456"}
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                  className={cn(
+                    "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-colors",
+                    selectedCategory === cat
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="max-h-72 overflow-y-auto px-1 pb-1">
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-xs text-muted-foreground">{"\u041D\u0456\u0447\u043E\u0433\u043E \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E"}</p>
@@ -134,6 +200,7 @@ function PrintSelectorDropdown({
                       onSelect(p.id, p.image_url || "")
                       setOpen(false)
                       setSearch("")
+                      setSelectedCategory(null)
                     }}
                     className={cn(
                       "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted",
@@ -146,7 +213,12 @@ function PrintSelectorDropdown({
                         : <Layers className="m-auto mt-3 h-5 w-5 text-muted-foreground" />
                       }
                     </div>
-                    <span className="truncate">{p.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate">{p.name}</span>
+                      {p.print_categories?.name && (
+                        <span className="block truncate text-xs text-muted-foreground">{p.print_categories.name}</span>
+                      )}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -154,7 +226,7 @@ function PrintSelectorDropdown({
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -396,23 +468,20 @@ function ZonePickerModal({
 
           {/* Selected zones summary */}
           {local.length > 0 && (
-            <div className="mt-6 rounded-lg border border-border bg-muted/30 p-4">
-              <h3 className="mb-3 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
+            <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
+              <h3 className="mb-2 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
               <div className={cn("gap-2", local.length > 2 ? "grid grid-cols-2" : "space-y-2")}>
                 {local.map((entry, i) => {
                   const info = findZoneInfo(entry.zoneId)
                   if (!info) return null
                   return (
-                    <div key={entry.zoneId} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                    <div key={entry.zoneId} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                         {i + 1}
                       </span>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium text-foreground">
-                          {info.zone.name || `\u0417\u043E\u043D\u0430 ${info.zone.id}`}
-                        </span>
-                        <span className="ml-1 text-xs text-muted-foreground">({info.image.label})</span>
-                      </div>
+                      <span className="shrink truncate text-sm font-medium text-foreground">
+                        {info.zone.name || `\u0417\u043E\u043D\u0430 ${info.zone.id}`}
+                      </span>
                       {i === 0 ? (
                         <span className="shrink-0 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                           {"\u041E\u0441\u043D\u043E\u0432\u043D\u0438\u0439 \u043F\u0440\u0438\u043D\u0442"}
