@@ -59,6 +59,7 @@ interface PrintPlacement {
 export function CompositeCard({
   base,
   print,
+  productName,
   zoneSelection,
   multiZoneSelection,
   printConfig,
@@ -70,6 +71,7 @@ export function CompositeCard({
 }: {
   base: CompositeBase
   print: CompositePrint
+  productName?: string
   zoneSelection?: ZoneSelection
   multiZoneSelection?: MultiZoneSelection
   printConfig?: PrintConfig | null
@@ -301,8 +303,8 @@ export function CompositeCard({
       </div>
 
       <div className="p-3">
-        <p className="font-semibold text-foreground">{base.name}</p>
-        <p className="text-sm text-muted-foreground">+ {print.name}</p>
+        <p className="font-semibold text-foreground">{productName || `${base.name} + ${print.name}`}</p>
+        {productName && <p className="text-xs text-muted-foreground">{base.name} + {print.name}</p>}
         {currentImage && (
           <p className="mt-0.5 text-xs text-muted-foreground">{currentImage.label}</p>
         )}

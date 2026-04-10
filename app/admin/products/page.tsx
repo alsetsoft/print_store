@@ -258,6 +258,7 @@ export default function ProductsPage() {
                   key={product.id}
                   base={product.base}
                   print={product.print}
+                  productName={product.name}
                   isActive={product.is_active}
                   printConfig={product.print_config}
                   placements={product.placements}
@@ -305,6 +306,7 @@ export default function ProductsPage() {
           base={constructorProduct.base}
           print={constructorProduct.print}
           productId={constructorProduct.id}
+          productName={constructorProduct.name}
           initialConfig={constructorProduct.print_config}
           onClose={() => {
             setConstructorProduct(null)

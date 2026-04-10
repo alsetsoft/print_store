@@ -31,12 +31,13 @@ interface ProductConstructorModalProps {
   base: CompositeBase
   print: CompositePrint
   productId: string
+  productName?: string
   initialConfig?: PrintConfig | null
   onClose: () => void
   onSaved: (productId: string, config: PrintConfig) => void
 }
 
-export function ProductConstructorModal({ base, print, productId, initialConfig, onClose, onSaved }: ProductConstructorModalProps) {
+export function ProductConstructorModal({ base, print, productId, productName: initialProductName, initialConfig, onClose, onSaved }: ProductConstructorModalProps) {
   const images = base.images
 
   const [imgIndex, setImgIndex] = useState(initialConfig?.imageIndex ?? 0)
@@ -55,6 +56,7 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
   const [imageRect, setImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [productName, setProductName] = useState(initialProductName ?? "")
 
   // Use ref for placements - NO useState to avoid re-render loops
   const placementsRef = useRef<Record<string, PrintPlacement>>({})
@@ -280,7 +282,9 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
         )
       }
       
-      await supabase.from("products").update({ print_config: config }).eq("id", productId)
+      if (productName.trim()) {
+        await supabase.from("products").update({ name: productName.trim() }).eq("id", parseInt(productId))
+      }
       onSaved(productId, config)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -297,9 +301,15 @@ export function ProductConstructorModal({ base, print, productId, initialConfig,
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div>
-            <h2 className="font-semibold text-foreground">{base.name}</h2>
-            <p className="text-sm text-muted-foreground">+ {print.name}</p>
+          <div className="min-w-0 flex-1 mr-4">
+            <input
+              type="text"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder={`${base.name} + ${print.name}`}
+              className="w-full bg-transparent text-base font-semibold text-foreground outline-none border-b border-transparent focus:border-primary transition-colors placeholder:text-muted-foreground/50"
+            />
+            <p className="mt-0.5 text-xs text-muted-foreground">{base.name} + {print.name}</p>
           </div>
           <div className="flex items-center gap-2">
             <button

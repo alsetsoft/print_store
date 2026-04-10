@@ -11,7 +11,6 @@ import {
   Settings,
   Home,
   ShoppingBag,
-  PenTool,
   Wand2,
   FolderTree,
   LogOut
@@ -29,7 +28,6 @@ const T = {
   prints:        "\u041f\u0440\u0438\u043d\u0442\u0438",
   bases:         "\u041e\u0441\u043d\u043e\u0432\u0438",
   products:      "\u0422\u043e\u0432\u0430\u0440\u0438",
-  constructor:   "\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440",
   generate:      "\u0413\u0435\u043d\u0435\u0440\u0443\u0432\u0430\u0442\u0438\u00a0\u0442\u043e\u0432\u0430\u0440",
   backToShop:    "\u041f\u043e\u0432\u0435\u0440\u043d\u0443\u0442\u0438\u0441\u044c\u00a0\u0434\u043e\u00a0\u043c\u0430\u0433\u0430\u0437\u0438\u043d\u0443",
   logout:        "\u0412\u0438\u0439\u0442\u0438",
@@ -43,7 +41,6 @@ const navigation = [
   { name: T.orders,      href: "/admin/orders",     icon: ShoppingCart },
   { name: T.products,    href: "/admin/products",   icon: ShoppingBag },
   { name: T.groups,      href: "/admin/groups",     icon: FolderTree },
-  { name: T.constructor, href: "/admin/designer",   icon: PenTool },
   { name: T.generate,    href: "/admin/generate",   icon: Wand2 },
   { name: T.parameters,  href: "/admin/parameters", icon: Layers },
   { name: T.prints,      href: "/admin/prints",     icon: Palette },
