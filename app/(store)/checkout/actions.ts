@@ -43,6 +43,9 @@ interface CartItemForOrder {
 export async function createOrder(formData: OrderFormData, cartItems: CartItemForOrder[]) {
   const supabase = await createClient()
 
+  // Get authenticated user (if any)
+  const { data: { user } } = await supabase.auth.getUser()
+
   // Generate order number
   const { data: seqData, error: seqError } = await supabase.rpc("nextval_order_number")
 
@@ -69,6 +72,7 @@ export async function createOrder(formData: OrderFormData, cartItems: CartItemFo
       np_warehouse_ref: formData.npWarehouseRef,
       np_warehouse_name: formData.npWarehouseName,
       total_amount: totalAmount,
+      user_id: user?.id ?? null,
     })
     .select("id, order_number")
     .single()

@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, ShoppingBag, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { useCart } from "@/lib/cart-context"
+import { useAuth } from "@/lib/auth-context"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,6 +40,8 @@ type CheckoutFormValues = z.infer<typeof checkoutSchema>
 
 export function CheckoutClient() {
   const { items, totalPrice, clearCart } = useCart()
+  const { user, profile } = useAuth()
+  const [prefilled, setPrefilled] = useState(false)
 
   // Region state
   const [regions, setRegions] = useState<NPRegion[]>([])
@@ -68,11 +71,28 @@ export function CheckoutClient() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CheckoutFormValues>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: { customerName: "", customerPhone: "", customerEmail: "", comment: "" },
   })
+
+  // Pre-fill form from profile
+  useEffect(() => {
+    if (profile && !prefilled) {
+      if (profile.full_name) setValue("customerName", profile.full_name)
+      if (profile.phone) setValue("customerPhone", profile.phone)
+      if (profile.email) setValue("customerEmail", profile.email)
+      if (profile.np_city_ref && profile.np_city_name) {
+        setSelectedCity({ id: Number(profile.np_city_ref), name: profile.np_city_name, regionId: "" } as NPCity)
+      }
+      if (profile.np_warehouse_ref && profile.np_warehouse_name) {
+        setSelectedWarehouse({ id: Number(profile.np_warehouse_ref), name: profile.np_warehouse_name } as NPWarehouse)
+      }
+      setPrefilled(true)
+    }
+  }, [profile, prefilled, setValue])
 
   // ── Load regions on mount ──
   useEffect(() => {
@@ -216,9 +236,16 @@ export function CheckoutClient() {
         <div className="flex-1 space-y-6">
           {/* Contact info */}
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="mb-4 text-base font-semibold">
-              {"\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u043d\u0456 \u0434\u0430\u043d\u0456"}
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold">
+                {"\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u043d\u0456 \u0434\u0430\u043d\u0456"}
+              </h2>
+              {!user && (
+                <Link href="/login?next=/checkout" className="text-xs text-primary hover:underline">
+                  {"\u0423\u0432\u0456\u0439\u0442\u0438 \u0434\u043b\u044f \u0430\u0432\u0442\u043e\u0437\u0430\u043f\u043e\u0432\u043d\u0435\u043d\u043d\u044f"}
+                </Link>
+              )}
+            </div>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="customerName">{"\u0406\u043c'\u044f \u0442\u0430 \u043f\u0440\u0456\u0437\u0432\u0438\u0449\u0435"} *</Label>

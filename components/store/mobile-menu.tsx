@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { Paintbrush, Shirt, Pencil, Menu } from "lucide-react"
+import { Paintbrush, Shirt, Pencil, Menu, User, LogIn } from "lucide-react"
 import { UA } from "@/lib/translations"
+import { useAuth } from "@/lib/auth-context"
 import { GlobalSearch } from "./global-search"
 import {
   Sheet,
@@ -50,6 +51,8 @@ interface MobileMenuProps {
 }
 
 export function MobileMenu({ categories, subcategories, groups, printCategories, printSubcategories }: MobileMenuProps) {
+  const { user, signOut } = useAuth()
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -110,6 +113,52 @@ export function MobileMenu({ categories, subcategories, groups, printCategories,
               {"\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440"}
             </Link>
           </SheetClose>
+
+          {/* Auth links */}
+          <div className="mt-4 border-t pt-4">
+            {user ? (
+              <>
+                <SheetClose asChild>
+                  <Link
+                    href="/account"
+                    className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                  >
+                    <User className="size-4" />
+                    {"\u041e\u0441\u043e\u0431\u0438\u0441\u0442\u0438\u0439 \u043a\u0430\u0431\u0456\u043d\u0435\u0442"}
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <button
+                    onClick={() => signOut()}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-accent"
+                  >
+                    {"\u0412\u0438\u0439\u0442\u0438"}
+                  </button>
+                </SheetClose>
+              </>
+            ) : (
+              <>
+                <SheetClose asChild>
+                  <Link
+                    href="/login"
+                    className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                  >
+                    <LogIn className="size-4" />
+                    {"\u0423\u0432\u0456\u0439\u0442\u0438"}
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link
+                    href="/register"
+                    className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                  >
+                    <User className="size-4" />
+                    {"\u0417\u0430\u0440\u0435\u0454\u0441\u0442\u0440\u0443\u0432\u0430\u0442\u0438\u0441\u044f"}
+                  </Link>
+                </SheetClose>
+              </>
+            )}
+          </div>
         </nav>
       </SheetContent>
     </Sheet>

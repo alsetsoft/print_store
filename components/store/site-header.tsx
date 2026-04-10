@@ -6,6 +6,7 @@ import { CatalogMenu } from "./catalog-menu"
 import { PrintsMenu } from "./prints-menu"
 import { MobileMenu } from "./mobile-menu"
 import { CartButton } from "./cart-button"
+import { AuthButton } from "./auth-button"
 import { GlobalSearch } from "./global-search"
 
 export async function SiteHeader() {
@@ -68,6 +69,7 @@ export async function SiteHeader() {
         {/* Search + Cart */}
         <div className="hidden items-center gap-3 md:flex">
           <GlobalSearch />
+          <AuthButton />
           <CartButton />
         </div>
 
