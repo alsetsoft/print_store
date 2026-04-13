@@ -269,7 +269,7 @@ export default async function PrintDetailPage({
           )}
 
           <Link
-            href="/create"
+            href={`/create?printId=${print.id}`}
             className="mt-6 inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 w-fit"
           >
             {UA.store.createWithPrint}

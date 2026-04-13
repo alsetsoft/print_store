@@ -110,7 +110,7 @@ interface ConstructorClientProps {
 
 // Add to cart imports
 import { useCart } from "@/lib/cart-context"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { generateDalleImage } from "./actions"
 
 // ---------------------------------------------------------------------------
@@ -158,6 +158,8 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [basePickerOpen, setBasePickerOpen] = useState(false)
   const { addItem, updateItem } = useCart()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const printParamRef = useRef(false)
 
   // Edit mode — restore state from localStorage
   const [editCartItemId, setEditCartItemId] = useState<string | null>(null)
@@ -264,6 +266,32 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // -------------------------------------------------------------------------
+  // Auto-add print from URL param (?printId=X)
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (printParamRef.current) return
+    if (editRestoredRef.current) return
+    if (!selectedZoneId) return
+    const printId = searchParams.get("printId")
+    if (!printId) return
+    printParamRef.current = true
+
+    const supabase = createClient()
+    supabase
+      .from("print_designs")
+      .select("id, name, image_url")
+      .eq("id", parseInt(printId))
+      .single()
+      .then(({ data }) => {
+        if (data?.image_url) {
+          addElement({ type: "print", imageUrl: data.image_url })
+        }
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedZoneId])
 
   // -------------------------------------------------------------------------
   // Measure image position within canvas
