@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
-import { ArrowLeft, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { UA } from "@/lib/translations"
+import { Check } from "lucide-react"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
 type Group = { id: number; name: string; base_category_id: number | null; base_subcategory_id: number | null }
+type PrintCategory = { id: number; name: string }
 
 interface CatalogSidebarProps {
   categories: Category[]
@@ -17,8 +17,38 @@ interface CatalogSidebarProps {
   activeSubcategoryId: number | null
   onCategoryChange: (id: number | null) => void
   onSubcategoryChange: (id: number | null) => void
-  searchQuery: string
-  onSearchChange: (value: string) => void
+  printCategories?: PrintCategory[]
+}
+
+function CheckboxItem({
+  label,
+  checked,
+  onClick,
+}: {
+  label: string
+  checked: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-1 py-1.5 text-sm transition-colors hover:bg-accent"
+    >
+      <span
+        className={cn(
+          "flex size-4.5 shrink-0 items-center justify-center rounded border transition-colors",
+          checked
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted-foreground/30"
+        )}
+      >
+        {checked && <Check className="size-3" />}
+      </span>
+      <span className={cn(checked ? "font-medium text-foreground" : "text-muted-foreground")}>
+        {label}
+      </span>
+    </button>
+  )
 }
 
 export function CatalogSidebar({
@@ -29,145 +59,105 @@ export function CatalogSidebar({
   activeSubcategoryId,
   onCategoryChange,
   onSubcategoryChange,
-  searchQuery,
-  onSearchChange,
+  printCategories,
 }: CatalogSidebarProps) {
-  const [localSearch, setLocalSearch] = useState(searchQuery)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Determine which items to show in category section
+  const subcatsForActive = activeCategoryId
+    ? subcategories.filter((sc) => sc.base_category_id === activeCategoryId)
+    : []
 
-  useEffect(() => {
-    setLocalSearch(searchQuery)
-  }, [searchQuery])
-
-  const handleSearchChange = (value: string) => {
-    setLocalSearch(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      onSearchChange(value)
-    }, 400)
-  }
-
-  const activeCategory = categories.find((c) => c.id === activeCategoryId)
-  const subcatsForActive = subcategories.filter(
-    (sc) => sc.base_category_id === activeCategoryId
-  )
+  const showSubcategories = activeCategoryId && subcatsForActive.length > 0
 
   return (
-    <aside className="w-full shrink-0 lg:w-64">
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder={"\u041f\u043e\u0448\u0443\u043a \u043f\u043e \u0442\u043e\u0432\u0430\u0440\u0430\u0445"}
-            value={localSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+    <aside className="w-full shrink-0 lg:w-60">
+      {/* Section: Категорія */}
+      <div className="mb-6">
+        <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
+          {UA.common.category}
+        </h3>
+        <div className="space-y-0.5">
+          {showSubcategories ? (
+            <>
+              <CheckboxItem
+                label={UA.store.allProducts}
+                checked={!activeSubcategoryId}
+                onClick={() => onSubcategoryChange(null)}
+              />
+              {subcatsForActive.map((sc) => (
+                <CheckboxItem
+                  key={sc.id}
+                  label={sc.name}
+                  checked={activeSubcategoryId === sc.id}
+                  onClick={() =>
+                    onSubcategoryChange(activeSubcategoryId === sc.id ? null : sc.id)
+                  }
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <CheckboxItem
+                label={UA.store.allProducts}
+                checked={!activeCategoryId}
+                onClick={() => onCategoryChange(null)}
+              />
+              {categories.map((cat) => (
+                <CheckboxItem
+                  key={cat.id}
+                  label={cat.name}
+                  checked={activeCategoryId === cat.id}
+                  onClick={() => onCategoryChange(cat.id)}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
 
-      <nav className="space-y-0.5">
-        {activeCategory ? (
-          <>
-            <button
-              onClick={() => {
-                onCategoryChange(null)
-              }}
-              className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ArrowLeft className="size-3.5" />
-              {"\u0412\u0441\u0456 \u0442\u043e\u0432\u0430\u0440\u0438"}
-            </button>
-
-            <div className="px-3 py-2 text-sm font-bold text-foreground">
-              {activeCategory.name}
-            </div>
-
-            {subcatsForActive.map((sc) => (
-              <button
-                key={sc.id}
-                onClick={() =>
-                  onSubcategoryChange(activeSubcategoryId === sc.id ? null : sc.id)
-                }
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
-                  activeSubcategoryId === sc.id
-                    ? "bg-primary/10 font-medium text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                {sc.name}
-                <ChevronRight className="size-3.5 text-muted-foreground" />
-              </button>
+      {/* Section: Принти */}
+      {printCategories && printCategories.length > 0 && (
+        <div className="mb-6">
+          <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
+            {UA.store.printCategory}
+          </h3>
+          <div className="space-y-0.5">
+            <CheckboxItem
+              label={UA.store.allProducts}
+              checked={true}
+              onClick={() => {}}
+            />
+            {printCategories.map((pc) => (
+              <CheckboxItem
+                key={pc.id}
+                label={pc.name}
+                checked={false}
+                onClick={() => {}}
+              />
             ))}
-
-            {/* Інше — orphan groups + groups belonging to this category without subcategory */}
-            <OrphanGroupsSection groups={groups} activeCategoryId={activeCategoryId} />
-          </>
-        ) : (
-          categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => onCategoryChange(cat.id)}
-              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              {cat.name}
-              <ChevronRight className="size-3.5 text-muted-foreground" />
-            </button>
-          ))
-        )}
-      </nav>
-    </aside>
-  )
-}
-
-function OrphanGroupsSection({ groups, activeCategoryId }: { groups: Group[]; activeCategoryId: number | null }) {
-  const [expanded, setExpanded] = useState(false)
-  const orphanGroups = groups.filter((g) =>
-    g.base_subcategory_id === null &&
-    (g.base_category_id === null || g.base_category_id === activeCategoryId)
-  )
-
-  return (
-    <>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className={cn(
-          "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
-          expanded
-            ? "bg-primary/10 font-medium text-primary"
-            : "text-muted-foreground hover:bg-accent hover:text-foreground"
-        )}
-      >
-        {"\u0406\u043d\u0448\u0435"}
-        <ChevronDown
-          className={cn(
-            "size-3.5 text-muted-foreground transition-transform duration-200",
-            expanded && "rotate-180"
-          )}
-        />
-      </button>
-      {expanded && (
-        <div className="ml-3 space-y-0.5 border-l pl-3">
-          {orphanGroups.length > 0 ? (
-            orphanGroups.map((group) => (
-              <Link
-                key={group.id}
-                href={`/group/${group.id}`}
-                className="block rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                {group.name}
-              </Link>
-            ))
-          ) : (
-            <p className="px-3 py-1.5 text-xs text-muted-foreground/60 italic">
-              {"\u0429\u0435 \u043d\u0435\u043c\u0430\u0454 \u0433\u0440\u0443\u043f"}
-            </p>
-          )}
+          </div>
         </div>
       )}
-    </>
+
+      {/* Section: Колір — placeholder */}
+      <div className="mb-6">
+        <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
+          {UA.store.color}
+        </h3>
+        <div className="space-y-0.5">
+          {[
+            "\u0411\u0456\u043b\u0438\u0439",
+            "\u0427\u043e\u0440\u043d\u0438\u0439",
+            "\u0421\u0456\u0440\u0438\u0439",
+          ].map((colorName) => (
+            <CheckboxItem
+              key={colorName}
+              label={colorName}
+              checked={false}
+              onClick={() => {}}
+            />
+          ))}
+        </div>
+      </div>
+    </aside>
   )
 }

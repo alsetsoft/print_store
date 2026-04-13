@@ -31,15 +31,17 @@ export default async function CatalogPage({
   const searchQuery = params.q?.trim() ?? ""
 
   // Fetch categories, subcategories & groups (small, always needed)
-  const [categoriesRes, subcategoriesRes, groupsRes] = await Promise.all([
+  const [categoriesRes, subcategoriesRes, groupsRes, printCategoriesRes] = await Promise.all([
     supabase.from("base_categories").select("id, name").order("id"),
     supabase.from("base_subcategories").select("id, name, base_category_id").order("id"),
     supabase.from("groups").select("id, name, base_category_id, base_subcategory_id").order("name"),
+    supabase.from("print_categories").select("id, name").order("name"),
   ])
 
   const categories = categoriesRes.data ?? []
   const subcategories = subcategoriesRes.data ?? []
   const groups = groupsRes.data ?? []
+  const printCategories = printCategoriesRes.data ?? []
 
   // Build filtered base IDs
   let baseIds: number[] | null = null
@@ -79,7 +81,7 @@ export default async function CatalogPage({
       if (cat) earlyBreadcrumb.push({ label: cat.name })
     }
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8">
         <StoreBreadcrumb items={earlyBreadcrumb} />
         <CatalogPageClient
           categories={categories}
@@ -92,6 +94,7 @@ export default async function CatalogPage({
           initialCategoryId={categoryId}
           initialSubcategoryId={subcategoryId}
           initialSearch={searchQuery}
+          printCategories={printCategories}
         />
       </div>
     )
@@ -127,7 +130,7 @@ export default async function CatalogPage({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8">
       <StoreBreadcrumb items={breadcrumbItems} />
       <CatalogPageClient
         categories={categories}
