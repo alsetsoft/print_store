@@ -5,6 +5,7 @@ import { Paintbrush } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { ProductCard } from "@/components/store/product-card"
 import { StoreBreadcrumb, type BreadcrumbSegment } from "@/components/store/store-breadcrumb"
+import { UA } from "@/lib/translations"
 
 function decodeLabel(raw: string): string {
   const idx = raw.indexOf("__lbl__")
@@ -203,7 +204,7 @@ export default async function PrintDetailPage({
   })
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8">
       <StoreBreadcrumb items={(() => {
         const items: BreadcrumbSegment[] = [{ label: "\u041f\u0440\u0438\u043d\u0442\u0438", href: "/prints" }]
         if (category) {
@@ -216,38 +217,36 @@ export default async function PrintDetailPage({
         return items
       })()} />
 
-      {/* Print info */}
-      <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-start">
-        <div className="shrink-0 overflow-hidden rounded-xl border bg-muted md:w-64">
-          <div className="relative aspect-square">
+      {/* Print hero section */}
+      <div className="mb-12 flex flex-col gap-8 lg:flex-row">
+        {/* Large print image */}
+        <div className="w-full max-w-sm mx-auto lg:mx-0 shrink-0">
+          <div className="relative aspect-square rounded-2xl border bg-card overflow-hidden" style={{ backgroundImage: "repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%)", backgroundSize: "20px 20px" }}>
             {print.image_url ? (
               <Image
                 src={print.image_url}
                 alt={print.name}
                 fill
-                className="object-contain p-4"
-                sizes="256px"
+                className="object-contain p-6"
+                sizes="(max-width: 1024px) 100vw, 512px"
                 priority
               />
             ) : (
               <div className="flex size-full items-center justify-center">
-                <Paintbrush className="size-16 text-muted-foreground/30" />
+                <Paintbrush className="size-20 text-muted-foreground/30" />
               </div>
             )}
           </div>
         </div>
 
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">{print.name}</h1>
-          {print.description && (
-            <p className="mt-2 text-muted-foreground">{print.description}</p>
-          )}
+        {/* Print info */}
+        <div className="flex-1 flex flex-col justify-center">
           {(category || subcategory) && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mb-4 flex flex-wrap gap-2">
               {category && (
                 <Link
                   href={`/prints?category=${category.id}`}
-                  className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  className="rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 >
                   {category.name}
                 </Link>
@@ -255,21 +254,34 @@ export default async function PrintDetailPage({
               {subcategory && (
                 <Link
                   href={`/prints?subcategory=${subcategory.id}`}
-                  className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  className="rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 >
                   {subcategory.name}
                 </Link>
               )}
             </div>
           )}
+
+          <h1 className="text-3xl font-bold tracking-tight">{print.name}</h1>
+
+          {print.description && (
+            <p className="mt-3 text-base text-muted-foreground leading-relaxed">{print.description}</p>
+          )}
+
+          <Link
+            href="/create"
+            className="mt-6 inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 font-medium text-primary-foreground transition-colors hover:bg-primary/90 w-fit"
+          >
+            {UA.store.createWithPrint}
+          </Link>
         </div>
       </div>
 
       {/* Products with this print */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold">
-          {"\u0422\u043e\u0432\u0430\u0440\u0438 \u0437 \u0446\u0438\u043c \u043f\u0440\u0438\u043d\u0442\u043e\u043c"}
-          <span className="ml-1 text-muted-foreground font-normal">({enrichedProducts.length})</span>
+        <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
+          {UA.store.productsWithPrint}
+          <span className="rounded-full bg-muted px-3 py-1 text-sm font-normal text-muted-foreground">{enrichedProducts.length}</span>
         </h2>
 
         {enrichedProducts.length > 0 ? (
@@ -279,7 +291,7 @@ export default async function PrintDetailPage({
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-lg border bg-muted/20 py-16 text-center">
+          <div className="flex flex-col items-center justify-center rounded-2xl border bg-muted/20 py-16 text-center">
             <Paintbrush className="mb-3 size-10 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">
               {"\u0422\u043e\u0432\u0430\u0440\u0456\u0432 \u0437 \u0446\u0438\u043c \u043f\u0440\u0438\u043d\u0442\u043e\u043c \u0449\u0435 \u043d\u0435\u043c\u0430\u0454"}

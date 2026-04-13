@@ -4,8 +4,9 @@ import { useCallback, useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Paintbrush, ChevronLeft, ChevronRight, ArrowLeft, Search } from "lucide-react"
+import { Paintbrush, ChevronLeft, ChevronRight, Search, ChevronDown, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { UA } from "@/lib/translations"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; print_category_id: number }
@@ -44,6 +45,14 @@ export function PrintsPageClient({
 }: PrintsPageClientProps) {
   const router = useRouter()
 
+  const [localSearch, setLocalSearch] = useState(initialSearch)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [sortOpen, setSortOpen] = useState(false)
+
+  useEffect(() => {
+    setLocalSearch(initialSearch)
+  }, [initialSearch])
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   const buildUrl = useCallback(
@@ -73,18 +82,66 @@ export function PrintsPageClient({
     [router, buildUrl]
   )
 
-  // Title
-  const activeCategory = categories.find((c) => c.id === initialCategoryId)
-  const activeSubcategory = subcategories.find((sc) => sc.id === initialSubcategoryId)
-  const pageTitle = activeSubcategory
-    ? activeSubcategory.name
-    : activeCategory
-      ? activeCategory.name
-      : "\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u043f\u0440\u0438\u043d\u0442\u0456\u0432"
+  const handleSearchChange = (value: string) => {
+    setLocalSearch(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      navigate({ q: value, page: 1 })
+    }, 400)
+  }
 
   return (
     <>
-      <h1 className="mb-6 text-2xl font-bold tracking-tight">{pageTitle}</h1>
+      {/* Search bar + CTA */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            placeholder={UA.store.searchPrints}
+            value={localSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="h-12 w-full rounded-2xl border bg-card pl-12 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        <Link
+          href="/create"
+          className="inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl bg-primary px-6 font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          {UA.store.createDesign}
+        </Link>
+      </div>
+
+      {/* Category pill tabs */}
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          onClick={() => navigate({ category: null, subcategory: null, page: 1 })}
+          className={cn(
+            "shrink-0 rounded-full px-5 py-2 text-sm font-medium transition-colors",
+            !initialCategoryId
+              ? "bg-primary text-primary-foreground"
+              : "bg-card text-foreground hover:bg-accent"
+          )}
+        >
+          {UA.store.allPrints}
+        </button>
+        {categories.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => navigate({ category: cat.id, subcategory: null, page: 1 })}
+            className={cn(
+              "shrink-0 rounded-full px-5 py-2 text-sm font-medium transition-colors",
+              initialCategoryId === cat.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-card text-foreground hover:bg-accent"
+            )}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Sidebar + Grid */}
       <div className="flex flex-col gap-6 lg:flex-row">
         <PrintsSidebar
           categories={categories}
@@ -93,22 +150,36 @@ export function PrintsPageClient({
           activeSubcategoryId={initialSubcategoryId}
           onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
           onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
-          searchQuery={initialSearch}
-          onSearchChange={(q) => navigate({ q, page: 1 })}
         />
 
         <div className="flex-1">
-          {/* Count */}
+          {/* Results header */}
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {"\u0412\u0441\u044c\u043e\u0433\u043e"} {totalCount}{" "}
-              {"\u043f\u0440\u0438\u043d\u0442\u0456\u0432"}
+              {UA.store.foundResults} {totalCount} {UA.store.printResults}
             </p>
-            {totalPages > 1 && (
-              <p className="text-sm text-muted-foreground">
-                {"\u0421\u0442\u043e\u0440\u0456\u043d\u043a\u0430"} {page} / {totalPages}
-              </p>
-            )}
+            <div className="relative">
+              <button
+                onClick={() => setSortOpen(!sortOpen)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                {UA.store.sortBy}: <span className="font-medium text-foreground">{UA.store.sortPopular}</span>
+                <ChevronDown className={cn("size-4 transition-transform", sortOpen && "rotate-180")} />
+              </button>
+              {sortOpen && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-xl border bg-card p-1 shadow-lg">
+                  {[UA.store.sortPopular, UA.store.sortNewest].map((label) => (
+                    <button
+                      key={label}
+                      onClick={() => setSortOpen(false)}
+                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Print grid */}
@@ -146,7 +217,7 @@ export function PrintsPageClient({
 
 function PrintCard({ print }: { print: PrintDesign }) {
   return (
-    <Link href={`/print/${print.id}`} className="group overflow-hidden rounded-lg border bg-card transition-shadow hover:shadow-md">
+    <Link href={`/print/${print.id}`} className="group overflow-hidden rounded-2xl border bg-card transition-shadow hover:shadow-md">
       <div className="relative aspect-square bg-muted">
         {print.image_url ? (
           <Image
@@ -172,6 +243,37 @@ function PrintCard({ print }: { print: PrintDesign }) {
   )
 }
 
+function CheckboxItem({
+  label,
+  checked,
+  onClick,
+}: {
+  label: string
+  checked: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-1 py-1.5 text-sm transition-colors hover:bg-accent"
+    >
+      <span
+        className={cn(
+          "flex size-4.5 shrink-0 items-center justify-center rounded border transition-colors",
+          checked
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted-foreground/30"
+        )}
+      >
+        {checked && <Check className="size-3" />}
+      </span>
+      <span className={cn(checked ? "font-medium text-foreground" : "text-muted-foreground")}>
+        {label}
+      </span>
+    </button>
+  )
+}
+
 function PrintsSidebar({
   categories,
   subcategories,
@@ -179,8 +281,6 @@ function PrintsSidebar({
   activeSubcategoryId,
   onCategoryChange,
   onSubcategoryChange,
-  searchQuery,
-  onSearchChange,
 }: {
   categories: Category[]
   subcategories: Subcategory[]
@@ -188,91 +288,57 @@ function PrintsSidebar({
   activeSubcategoryId: number | null
   onCategoryChange: (id: number | null) => void
   onSubcategoryChange: (id: number | null) => void
-  searchQuery: string
-  onSearchChange: (value: string) => void
 }) {
-  const [localSearch, setLocalSearch] = useState(searchQuery)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const subcatsForActive = activeCategoryId
+    ? subcategories.filter((sc) => sc.print_category_id === activeCategoryId)
+    : []
 
-  useEffect(() => {
-    setLocalSearch(searchQuery)
-  }, [searchQuery])
-
-  const handleSearchChange = (value: string) => {
-    setLocalSearch(value)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      onSearchChange(value)
-    }, 400)
-  }
-
-  const activeCategory = categories.find((c) => c.id === activeCategoryId)
-  const subcatsForActive = subcategories.filter(
-    (sc) => sc.print_category_id === activeCategoryId
-  )
+  const showSubcategories = activeCategoryId && subcatsForActive.length > 0
 
   return (
-    <aside className="w-full shrink-0 lg:w-64">
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder={"\u041f\u043e\u0448\u0443\u043a \u043f\u0440\u0438\u043d\u0442\u0456\u0432"}
-            value={localSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-9 w-full rounded-md border bg-background pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+    <aside className="w-full shrink-0 lg:w-60">
+      <div className="mb-6">
+        <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
+          {UA.common.category}
+        </h3>
+        <div className="space-y-0.5">
+          {showSubcategories ? (
+            <>
+              <CheckboxItem
+                label={UA.store.allPrints}
+                checked={!activeSubcategoryId}
+                onClick={() => onSubcategoryChange(null)}
+              />
+              {subcatsForActive.map((sc) => (
+                <CheckboxItem
+                  key={sc.id}
+                  label={sc.name}
+                  checked={activeSubcategoryId === sc.id}
+                  onClick={() =>
+                    onSubcategoryChange(activeSubcategoryId === sc.id ? null : sc.id)
+                  }
+                />
+              ))}
+            </>
+          ) : (
+            <>
+              <CheckboxItem
+                label={UA.store.allPrints}
+                checked={!activeCategoryId}
+                onClick={() => onCategoryChange(null)}
+              />
+              {categories.map((cat) => (
+                <CheckboxItem
+                  key={cat.id}
+                  label={cat.name}
+                  checked={activeCategoryId === cat.id}
+                  onClick={() => onCategoryChange(cat.id)}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
-
-      <nav className="space-y-0.5">
-        {activeCategory ? (
-          <>
-            <button
-              onClick={() => onCategoryChange(null)}
-              className="flex w-full items-center gap-1.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <ArrowLeft className="size-3.5" />
-              {"\u0412\u0441\u0456 \u043f\u0440\u0438\u043d\u0442\u0438"}
-            </button>
-
-            <div className="px-3 py-2 text-sm font-bold text-foreground">
-              {activeCategory.name}
-            </div>
-
-            {subcatsForActive.map((sc) => (
-              <button
-                key={sc.id}
-                onClick={() =>
-                  onSubcategoryChange(activeSubcategoryId === sc.id ? null : sc.id)
-                }
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
-                  activeSubcategoryId === sc.id
-                    ? "bg-primary/10 font-medium text-primary"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                )}
-              >
-                {sc.name}
-                <ChevronRight className="size-3.5 text-muted-foreground" />
-              </button>
-            ))}
-          </>
-        ) : (
-          categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => onCategoryChange(cat.id)}
-              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              {cat.name}
-              <ChevronRight className="size-3.5 text-muted-foreground" />
-            </button>
-          ))
-        )}
-      </nav>
     </aside>
   )
 }
@@ -302,7 +368,7 @@ function Pagination({
       <a
         href={page > 1 ? buildUrl(page - 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-md border text-sm transition-colors",
+          "flex size-9 items-center justify-center rounded-xl border text-sm transition-colors",
           page > 1 ? "hover:bg-accent cursor-pointer" : "pointer-events-none opacity-40"
         )}
         aria-disabled={page <= 1}
@@ -320,7 +386,7 @@ function Pagination({
             key={p}
             href={buildUrl(p)}
             className={cn(
-              "flex size-9 items-center justify-center rounded-md border text-sm font-medium transition-colors",
+              "flex size-9 items-center justify-center rounded-xl border text-sm font-medium transition-colors",
               p === page
                 ? "border-primary bg-primary text-primary-foreground"
                 : "hover:bg-accent"
@@ -334,7 +400,7 @@ function Pagination({
       <a
         href={page < totalPages ? buildUrl(page + 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-md border text-sm transition-colors",
+          "flex size-9 items-center justify-center rounded-xl border text-sm transition-colors",
           page < totalPages ? "hover:bg-accent cursor-pointer" : "pointer-events-none opacity-40"
         )}
         aria-disabled={page >= totalPages}
