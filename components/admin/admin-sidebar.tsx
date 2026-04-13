@@ -34,6 +34,7 @@ const T = {
   overview:      "\u041e\u0433\u043b\u044f\u0434",
   orders:        "\u0417\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f",
   groups:        "\u0413\u0440\u0443\u043f\u0438",
+  settings:      "\u041d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f",
 }
 
 const navigation = [
@@ -45,6 +46,7 @@ const navigation = [
   { name: T.parameters,  href: "/admin/parameters", icon: Layers },
   { name: T.prints,      href: "/admin/prints",     icon: Palette },
   { name: T.bases,       href: "/admin/bases",      icon: Package },
+  { name: T.settings,    href: "/admin/settings",   icon: Settings },
 ]
 
 export function AdminSidebar() {

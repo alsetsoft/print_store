@@ -1,5 +1,6 @@
+import { getSetting } from "@/lib/settings"
+
 const API_URL = "https://api-stage.novapost.pl/v.1.0"
-const API_KEY = process.env.NOVA_POSHTA_API_KEY!
 
 // ── Interfaces ──
 
@@ -27,11 +28,22 @@ export interface NPWarehouse {
 
 let jwtToken: string | null = null
 let jwtExpiry = 0
+let lastApiKey: string | null = null
 
 async function getJwtToken(): Promise<string> {
+  const apiKey = await getSetting("NOVA_POSHTA_API_KEY")
+  if (!apiKey) throw new Error("Nova Poshta API key not configured")
+
+  // Invalidate cache if key changed
+  if (lastApiKey && lastApiKey !== apiKey) {
+    jwtToken = null
+    jwtExpiry = 0
+  }
+  lastApiKey = apiKey
+
   if (jwtToken && Date.now() < jwtExpiry) return jwtToken
 
-  const res = await fetch(`${API_URL}/clients/authorization?apiKey=${API_KEY}`)
+  const res = await fetch(`${API_URL}/clients/authorization?apiKey=${apiKey}`)
 
   if (!res.ok) throw new Error(`Nova Poshta auth failed: ${res.status}`)
   const data = await res.json()

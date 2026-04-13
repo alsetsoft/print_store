@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing data or signature" }, { status: 400 })
     }
 
-    const payload = verifyLiqPayCallback(data, signature)
+    const payload = await verifyLiqPayCallback(data, signature)
     if (!payload) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
     }

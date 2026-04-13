@@ -1,7 +1,5 @@
 import crypto from "crypto"
-
-const PUBLIC_KEY = process.env.LIQPAY_PUBLIC_KEY!
-const PRIVATE_KEY = process.env.LIQPAY_PRIVATE_KEY!
+import { getSetting } from "@/lib/settings"
 
 interface LiqPayParams {
   orderId: string
@@ -12,9 +10,14 @@ interface LiqPayParams {
   serverUrl: string
 }
 
-export function generateLiqPayData(params: LiqPayParams): { data: string; signature: string } {
+export async function generateLiqPayData(params: LiqPayParams): Promise<{ data: string; signature: string }> {
+  const publicKey = await getSetting("LIQPAY_PUBLIC_KEY")
+  const privateKey = await getSetting("LIQPAY_PRIVATE_KEY")
+
+  if (!publicKey || !privateKey) throw new Error("LiqPay keys not configured")
+
   const payload = {
-    public_key: PUBLIC_KEY,
+    public_key: publicKey,
     version: 3,
     action: "pay",
     amount: params.amount,
@@ -29,19 +32,23 @@ export function generateLiqPayData(params: LiqPayParams): { data: string; signat
   const data = Buffer.from(JSON.stringify(payload)).toString("base64")
   const signature = crypto
     .createHash("sha1")
-    .update(PRIVATE_KEY + data + PRIVATE_KEY)
+    .update(privateKey + data + privateKey)
     .digest("base64")
 
   return { data, signature }
 }
 
-export function verifyLiqPayCallback(
+export async function verifyLiqPayCallback(
   data: string,
   signature: string
-): Record<string, unknown> | null {
+): Promise<Record<string, unknown> | null> {
+  const privateKey = await getSetting("LIQPAY_PRIVATE_KEY")
+
+  if (!privateKey) return null
+
   const expectedSignature = crypto
     .createHash("sha1")
-    .update(PRIVATE_KEY + data + PRIVATE_KEY)
+    .update(privateKey + data + privateKey)
     .digest("base64")
 
   if (signature !== expectedSignature) return null

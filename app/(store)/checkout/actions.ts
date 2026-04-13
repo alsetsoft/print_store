@@ -105,7 +105,7 @@ export async function generatePaymentData(orderId: string, orderNumber: string, 
   const protocol = h.get("x-forwarded-proto") ?? "http"
   const baseUrl = `${protocol}://${host}`
 
-  const { data, signature } = generateLiqPayData({
+  const { data, signature } = await generateLiqPayData({
     orderId,
     orderNumber,
     amount,
