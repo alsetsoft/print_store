@@ -26,7 +26,7 @@ export default function StoreLayout({
   return (
     <AuthProvider>
       <CartProvider>
-        <div className="flex min-h-screen flex-col">
+        <div className="store-theme flex min-h-screen flex-col">
           <SiteHeader />
           <main className="flex-1">{children}</main>
           <SiteFooter />

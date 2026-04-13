@@ -28,6 +28,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  --input-background: oklch(0.92 0 0);
   --radius: 0.625rem;
   --sidebar: oklch(0.99 0 0);
   --sidebar-foreground: oklch(0.25 0 0);
@@ -74,9 +75,29 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
+.store-theme {
+  --background: #F5FAF8;
+  --foreground: #111827;
+  --card: #E7F0EC;
+  --card-foreground: #111827;
+  --primary: #10B981;
+  --primary-foreground: #ffffff;
+  --secondary: #6B7280;
+  --secondary-foreground: #ffffff;
+  --muted: #E7F0EC;
+  --muted-foreground: #6B7280;
+  --accent: #8B5CF6;
+  --accent-foreground: #ffffff;
+  --border: rgba(16, 185, 129, 0.2);
+  --input: transparent;
+  --input-background: #E7F0EC;
+  --ring: #10B981;
+}
+
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-heading: var(--font-heading);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -95,6 +116,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-input-background: var(--input-background);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
