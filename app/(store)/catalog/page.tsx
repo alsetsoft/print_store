@@ -18,6 +18,7 @@ export default async function CatalogPage({
   searchParams: Promise<{
     category?: string
     subcategory?: string
+    print_category?: string
     q?: string
     page?: string
   }>
@@ -28,6 +29,7 @@ export default async function CatalogPage({
   const page = Math.max(1, parseInt(params.page ?? "1") || 1)
   const categoryId = params.category ? parseInt(params.category) : null
   const subcategoryId = params.subcategory ? parseInt(params.subcategory) : null
+  const printCategoryId = params.print_category ? parseInt(params.print_category) : null
   const searchQuery = params.q?.trim() ?? ""
 
   // Fetch categories, subcategories & groups (small, always needed)
@@ -95,6 +97,7 @@ export default async function CatalogPage({
           initialSubcategoryId={subcategoryId}
           initialSearch={searchQuery}
           printCategories={printCategories}
+          initialPrintCategoryId={printCategoryId}
         />
       </div>
     )
@@ -104,6 +107,7 @@ export default async function CatalogPage({
 
   const { products: enrichedProducts, totalCount } = await fetchEnrichedProducts(supabase, {
     baseIds,
+    printCategoryId,
     search: searchQuery || undefined,
     limit: PAGE_SIZE,
     offset: from,
@@ -143,6 +147,8 @@ export default async function CatalogPage({
         initialCategoryId={categoryId}
         initialSubcategoryId={subcategoryId}
         initialSearch={searchQuery}
+        printCategories={printCategories}
+        initialPrintCategoryId={printCategoryId}
       />
     </div>
   )

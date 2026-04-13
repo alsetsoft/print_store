@@ -37,6 +37,7 @@ interface CatalogPageClientProps {
   initialSubcategoryId: number | null
   initialSearch: string
   printCategories?: PrintCategory[]
+  initialPrintCategoryId?: number | null
 }
 
 export function CatalogPageClient({
@@ -51,6 +52,7 @@ export function CatalogPageClient({
   initialSubcategoryId,
   initialSearch,
   printCategories,
+  initialPrintCategoryId,
 }: CatalogPageClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -66,27 +68,29 @@ export function CatalogPageClient({
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   const buildUrl = useCallback(
-    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number }) => {
+    (overrides: { category?: number | null; subcategory?: number | null; print_category?: number | null; q?: string; page?: number }) => {
       const params = new URLSearchParams()
 
       const cat = overrides.category !== undefined ? overrides.category : initialCategoryId
       const sub = overrides.subcategory !== undefined ? overrides.subcategory : initialSubcategoryId
+      const pc = overrides.print_category !== undefined ? overrides.print_category : (initialPrintCategoryId ?? null)
       const q = overrides.q !== undefined ? overrides.q : initialSearch
       const p = overrides.page ?? 1
 
       if (cat) params.set("category", String(cat))
       if (sub) params.set("subcategory", String(sub))
+      if (pc) params.set("print_category", String(pc))
       if (q) params.set("q", q)
       if (p > 1) params.set("page", String(p))
 
       const qs = params.toString()
       return `/catalog${qs ? `?${qs}` : ""}`
     },
-    [initialCategoryId, initialSubcategoryId, initialSearch]
+    [initialCategoryId, initialSubcategoryId, initialPrintCategoryId, initialSearch]
   )
 
   const navigate = useCallback(
-    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number }) => {
+    (overrides: { category?: number | null; subcategory?: number | null; print_category?: number | null; q?: string; page?: number }) => {
       router.push(buildUrl(overrides))
     },
     [router, buildUrl]
@@ -162,6 +166,8 @@ export function CatalogPageClient({
           onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
           onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
           printCategories={printCategories}
+          activePrintCategoryId={initialPrintCategoryId ?? null}
+          onPrintCategoryChange={(id) => navigate({ print_category: id, page: 1 })}
         />
 
         <div className="flex-1">

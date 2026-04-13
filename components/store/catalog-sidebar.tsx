@@ -18,6 +18,8 @@ interface CatalogSidebarProps {
   onCategoryChange: (id: number | null) => void
   onSubcategoryChange: (id: number | null) => void
   printCategories?: PrintCategory[]
+  activePrintCategoryId?: number | null
+  onPrintCategoryChange?: (id: number | null) => void
 }
 
 function CheckboxItem({
@@ -60,6 +62,8 @@ export function CatalogSidebar({
   onCategoryChange,
   onSubcategoryChange,
   printCategories,
+  activePrintCategoryId,
+  onPrintCategoryChange,
 }: CatalogSidebarProps) {
   // Determine which items to show in category section
   const subcatsForActive = activeCategoryId
@@ -115,7 +119,7 @@ export function CatalogSidebar({
       </div>
 
       {/* Section: Принти */}
-      {printCategories && printCategories.length > 0 && (
+      {printCategories && printCategories.length > 0 && onPrintCategoryChange && (
         <div className="mb-6">
           <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
             {UA.store.printCategory}
@@ -123,41 +127,22 @@ export function CatalogSidebar({
           <div className="space-y-0.5">
             <CheckboxItem
               label={UA.store.allProducts}
-              checked={true}
-              onClick={() => {}}
+              checked={!activePrintCategoryId}
+              onClick={() => onPrintCategoryChange(null)}
             />
             {printCategories.map((pc) => (
               <CheckboxItem
                 key={pc.id}
                 label={pc.name}
-                checked={false}
-                onClick={() => {}}
+                checked={activePrintCategoryId === pc.id}
+                onClick={() =>
+                  onPrintCategoryChange(activePrintCategoryId === pc.id ? null : pc.id)
+                }
               />
             ))}
           </div>
         </div>
       )}
-
-      {/* Section: Колір — placeholder */}
-      <div className="mb-6">
-        <h3 className="mb-2 font-heading text-sm font-bold text-foreground">
-          {UA.store.color}
-        </h3>
-        <div className="space-y-0.5">
-          {[
-            "\u0411\u0456\u043b\u0438\u0439",
-            "\u0427\u043e\u0440\u043d\u0438\u0439",
-            "\u0421\u0456\u0440\u0438\u0439",
-          ].map((colorName) => (
-            <CheckboxItem
-              key={colorName}
-              label={colorName}
-              checked={false}
-              onClick={() => {}}
-            />
-          ))}
-        </div>
-      </div>
     </aside>
   )
 }

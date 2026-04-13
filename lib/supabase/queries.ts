@@ -20,17 +20,31 @@ export async function fetchEnrichedProducts(
   supabase: SupabaseClient,
   opts?: {
     baseIds?: number[] | null
+    printCategoryId?: number | null
     search?: string
     limit?: number
     offset?: number
     count?: boolean
   }
 ): Promise<{ products: EnrichedProduct[]; totalCount: number }> {
-  const { baseIds = null, search, limit = 20, offset = 0, count = false } = opts ?? {}
+  const { baseIds = null, printCategoryId = null, search, limit = 20, offset = 0, count = false } = opts ?? {}
 
   // Short-circuit if baseIds is an empty array (no matching bases)
   if (baseIds !== null && baseIds.length === 0) {
     return { products: [], totalCount: 0 }
+  }
+
+  // If filtering by print category, resolve matching print IDs first
+  let printIds: number[] | null = null
+  if (printCategoryId) {
+    const { data: prints } = await supabase
+      .from("print_designs")
+      .select("id")
+      .eq("print_category_id", printCategoryId)
+    printIds = (prints ?? []).map((p) => p.id)
+    if (printIds.length === 0) {
+      return { products: [], totalCount: 0 }
+    }
   }
 
   let productQuery = supabase
@@ -45,6 +59,10 @@ export async function fetchEnrichedProducts(
 
   if (baseIds !== null) {
     productQuery = productQuery.in("base_id", baseIds)
+  }
+
+  if (printIds !== null) {
+    productQuery = productQuery.in("print_id", printIds)
   }
 
   if (search) {
