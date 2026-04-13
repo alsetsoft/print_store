@@ -36,8 +36,8 @@ export default async function BasesPage({
 
   // Fetch categories & subcategories
   const [categoriesRes, subcategoriesRes] = await Promise.all([
-    supabase.from("base_categories").select("id, name").order("name"),
-    supabase.from("base_subcategories").select("id, name, base_category_id").order("name"),
+    supabase.from("base_categories").select("id, name").order("id"),
+    supabase.from("base_subcategories").select("id, name, base_category_id").order("id"),
   ])
 
   const categories = categoriesRes.data ?? []
@@ -125,7 +125,7 @@ export default async function BasesPage({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-[1360px] px-4 py-8 sm:px-6 lg:px-8">
       <StoreBreadcrumb items={breadcrumbItems} />
       <BasesPageClient
         categories={categories}
