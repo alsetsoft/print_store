@@ -351,7 +351,7 @@ function ZonePickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-5xl rounded-xl border border-border bg-card shadow-xl">
+      <div className="w-full max-w-5xl mx-4 sm:mx-auto rounded-xl border border-border bg-card shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
             <h2 className="font-semibold text-foreground">{base.name}</h2>
@@ -408,7 +408,7 @@ function ZonePickerModal({
               {visibleImages.map((img) => (
                 <div key={img.id}>
                   <p className="mb-2 text-sm font-medium text-foreground">{img.label}</p>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <div className="relative h-52 w-52 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
                       <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
                       {img.zones.map((z) => (
@@ -473,7 +473,7 @@ function ZonePickerModal({
           {local.length > 0 && (
             <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
               <h3 className="mb-2 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
-              <div className={cn("gap-2", local.length > 2 ? "grid grid-cols-2" : "space-y-2")}>
+              <div className={cn("gap-2", local.length > 2 ? "grid grid-cols-1 sm:grid-cols-2" : "space-y-2")}>
                 {local.map((entry, i) => {
                   const info = findZoneInfo(entry.zoneId)
                   if (!info) return null
@@ -829,7 +829,7 @@ export default function GeneratePage() {
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
             <Wand2 className="h-5 w-5 text-primary-foreground" />
@@ -862,7 +862,7 @@ export default function GeneratePage() {
       )}
 
       {/* Selection panels */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Bases */}
         <div className="flex flex-col rounded-xl border border-border bg-card">
@@ -978,7 +978,7 @@ export default function GeneratePage() {
             </div>
           </div>
           <div className="overflow-y-auto px-3 pb-3" style={{ maxHeight: 400 }}>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {filteredPrints.map((print) => {
                 const isSelected = selectedPrintIds.has(print.id)
                 return (
@@ -1017,7 +1017,7 @@ export default function GeneratePage() {
       {/* Preview grid */}
       {activeCombinations.length > 0 && (
         <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border px-6 py-4">
             <div>
               <div className="flex items-center gap-2">
                 <Layers className="h-5 w-5 text-foreground" />
@@ -1037,7 +1037,7 @@ export default function GeneratePage() {
             </button>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {activeCombinations.map(({ base, print, colorId, key }) => {
                 const colorBase = colorId != null
                   ? { ...base, images: base.images.filter((img) => img.colorId === colorId) }

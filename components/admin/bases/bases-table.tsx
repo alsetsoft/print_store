@@ -68,7 +68,93 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
         </h3>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile card list */}
+      <div className="space-y-2 px-4 pb-4 lg:hidden">
+        {filteredBases.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12">
+            <Package className="h-8 w-8 text-muted-foreground" />
+            <p className="text-muted-foreground" suppressHydrationWarning>
+              {searchQuery ? "Основ не знайдено" : "Основи ще не додані"}
+            </p>
+          </div>
+        ) : (
+          filteredBases.map((base) => (
+            <div key={base.id} className="rounded-xl border border-border bg-card p-3">
+              <div className="flex gap-3">
+                {/* Left: image */}
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                  {base.image_url ? (
+                    <img
+                      src={base.image_url}
+                      alt={base.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+
+                {/* Middle: info */}
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="font-medium text-foreground">{base.name}</p>
+                  {base.description && (
+                    <p className="truncate text-sm text-muted-foreground">
+                      {base.description}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {base.base_categories && (
+                      <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium">
+                        {base.base_categories.name}
+                      </span>
+                    )}
+                    {base.base_colors && base.base_colors.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {base.base_colors.map((bc) => bc.colors?.hex_code && (
+                          <div
+                            key={bc.color_id}
+                            className="h-4 w-4 rounded-full border border-border"
+                            style={{ backgroundColor: bc.colors.hex_code }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: price & actions */}
+                <div className="flex shrink-0 flex-col items-end justify-between">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-foreground">
+                      {base.price ? `${base.price} ₴` : "—"}
+                    </p>
+                    {base.sku && (
+                      <p className="font-mono text-xs text-muted-foreground">{base.sku}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingBase(base)}
+                      className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeletingId(base.id)}
+                      className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-t border-border bg-muted/50 text-left text-sm text-muted-foreground">

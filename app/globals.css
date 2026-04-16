@@ -218,6 +218,15 @@ body:has(.store-theme) {
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 }
 
+/* Hide scrollbar but keep scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Constructor canvas — prevent browser gestures during drag */
 .constructor-canvas {
   touch-action: none;

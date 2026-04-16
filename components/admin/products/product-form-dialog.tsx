@@ -131,8 +131,8 @@ export function ProductFormDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-card shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
+      <div className="flex max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-4xl flex-col overflow-hidden rounded-t-xl sm:rounded-xl bg-card shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
@@ -240,7 +240,7 @@ export function ProductFormDialog({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {filteredBases.map((base) => {
                     const isSelected = selectedBaseIds.includes(base.id)
                     return (
@@ -315,7 +315,7 @@ export function ProductFormDialog({
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                   {filteredPrints.map((print) => {
                     const isSelected = selectedPrintId === print.id
                     return (
@@ -368,7 +368,7 @@ export function ProductFormDialog({
                   Буде створено {selectedBaseIds.length} товар
                   {selectedBaseIds.length > 1 ? "ів" : ""}:
                 </h3>
-                <div className="flex items-start gap-4">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
                   {/* Selected bases */}
                   <div className="flex-1">
                     <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">
@@ -440,7 +440,7 @@ export function ProductFormDialog({
               <h4 className="mb-3 text-sm font-medium text-foreground">
                 Попередній перегляд товарів:
               </h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {selectedBases.slice(0, 8).map((base) => (
                   <div
                     key={base.id}

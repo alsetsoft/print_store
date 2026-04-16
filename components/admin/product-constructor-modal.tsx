@@ -301,12 +301,12 @@ export function ProductConstructorModal({ base, print, productId, productName: i
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
+      <div className="flex h-[100dvh] sm:h-[90vh] w-full sm:max-w-5xl flex-col overflow-hidden rounded-none sm:rounded-2xl border-0 sm:border border-border bg-card shadow-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div className="min-w-0 flex-1 mr-4">
+        <div className="flex items-center justify-between border-b border-border px-4 sm:px-6 py-3 sm:py-4">
+          <div className="min-w-0 flex-1 mr-2 sm:mr-4">
             <input
               type="text"
               value={productName}
@@ -351,10 +351,10 @@ export function ProductConstructorModal({ base, print, productId, productName: i
           </div>
         </div>
 
-        <div className="flex flex-1 min-h-0 gap-0">
+        <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-0">
 
           {/* Left panel: image switcher + zone picker */}
-          <div className="flex w-60 shrink-0 flex-col border-r border-border">
+          <div className="flex w-full sm:w-60 shrink-0 flex-row sm:flex-col border-b sm:border-b-0 sm:border-r border-border overflow-x-auto sm:overflow-x-visible max-h-[120px] sm:max-h-none">
             {/* Image tabs */}
             {images.length > 1 && (
               <div className="border-b border-border p-3">

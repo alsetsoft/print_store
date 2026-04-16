@@ -191,20 +191,21 @@ export function ParametersTabs() {
     <>
       <div className="rounded-xl border border-border bg-card">
         {/* Tabs */}
-        <div className="flex flex-wrap border-b border-border">
+        <div className="-mb-px flex overflow-x-auto border-b border-border scrollbar-none">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => handleTabClick(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+                "flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "border-b-2 border-primary text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
               <tab.icon className="h-4 w-4" />
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.label.split(" ").slice(-1)[0]}</span>
             </button>
           ))}
         </div>

@@ -167,7 +167,7 @@ export default function OrdersContent() {
       </div>
 
       {/* Search + Filter */}
-      <div className="flex items-center gap-3 border-b border-border bg-card px-6 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 border-b border-border bg-card px-6 py-3">
         <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -179,7 +179,7 @@ export default function OrdersContent() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -223,31 +223,46 @@ export default function OrdersContent() {
                   <button
                     type="button"
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent/30"
+                    className="w-full px-5 py-4 text-left transition-colors hover:bg-accent/30"
                   >
-                    <div className="min-w-[100px] font-mono text-sm font-semibold text-foreground">
-                      {order.order_number}
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4 w-full">
+                      <div className="flex items-center justify-between sm:contents">
+                        <div className="font-mono text-sm font-semibold text-foreground">
+                          {order.order_number}
+                        </div>
+                        <StatusBadge status={order.status} />
+                        <div className="sm:hidden">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-sm sm:contents">
+                        <div className="flex flex-col sm:flex-col">
+                          <span className="text-sm font-medium text-foreground">{order.customer_name}</span>
+                          <span className="text-xs text-muted-foreground">{order.customer_phone}</span>
+                        </div>
+                        <div className="text-sm font-semibold text-foreground">
+                          {Number(order.total_amount).toFixed(0)} {"\u20b4"}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Package className="h-3.5 w-3.5" />
+                          {order.items.length}
+                        </div>
+                        <div className="ml-auto text-xs text-muted-foreground">
+                          {formatDate(order.created_at)}
+                        </div>
+                      </div>
+                      <div className="hidden sm:block ml-auto">
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex min-w-[180px] flex-col">
-                      <span className="text-sm font-medium text-foreground">{order.customer_name}</span>
-                      <span className="text-xs text-muted-foreground">{order.customer_phone}</span>
-                    </div>
-                    <div className="min-w-[100px] text-sm font-semibold text-foreground">
-                      {Number(order.total_amount).toFixed(0)} {"\u20b4"}
-                    </div>
-                    <StatusBadge status={order.status} />
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Package className="h-3.5 w-3.5" />
-                      {order.items.length}
-                    </div>
-                    <div className="ml-auto text-xs text-muted-foreground">
-                      {formatDate(order.created_at)}
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    )}
                   </button>
 
                   {/* Expanded detail */}

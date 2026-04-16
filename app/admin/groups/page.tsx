@@ -480,7 +480,7 @@ export default function GroupsPage() {
     return (
       <div className="flex flex-1 flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border bg-card px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <FolderTree className="h-5 w-5 text-primary-foreground" />
@@ -649,7 +649,7 @@ export default function GroupsPage() {
   return (
     <div className="flex flex-1 flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3 shrink-0">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border bg-card px-5 py-3 shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={goBackToList}
@@ -672,7 +672,7 @@ export default function GroupsPage() {
             </h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground mr-2">
             {selectedProductIds.length} {"\u0442\u043E\u0432\u0430\u0440\u0456\u0432 \u043E\u0431\u0440\u0430\u043D\u043E"}
           </span>
@@ -703,9 +703,9 @@ export default function GroupsPage() {
       </div>
 
       {/* 2-panel layout */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0">
         {/* Left sidebar — form fields */}
-        <div className="w-72 shrink-0 border-r border-border bg-card overflow-auto">
+        <div className="w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-card max-h-[40vh] lg:max-h-none overflow-auto">
           <div className="p-4 space-y-4">
             {/* Name */}
             <div>
@@ -800,7 +800,7 @@ export default function GroupsPage() {
         {/* Right panel — products */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Toolbar */}
-          <div className="flex items-center gap-2 border-b border-border px-4 py-2 bg-card shrink-0">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 bg-card shrink-0">
             {/* Tabs */}
             <button
               onClick={() => setProductTab("all")}
@@ -825,7 +825,7 @@ export default function GroupsPage() {
               {"\u041E\u0431\u0440\u0430\u043D\u0456"} ({selectedProductIds.length})
             </button>
 
-            <div className="w-px h-5 bg-border mx-1" />
+            <div className="hidden sm:block w-px h-5 bg-border mx-1" />
 
             {/* Filters — only for "all" tab */}
             {productTab === "all" && (
@@ -940,7 +940,7 @@ export default function GroupsPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {filteredProducts.map((product) => renderProductCard(product, "all"))}
                   </div>
                 )}
@@ -962,7 +962,7 @@ export default function GroupsPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                     {allProducts
                       .filter(p => selectedProductIds.includes(p.id))
                       .map((product) => renderProductCard(product, "selected"))

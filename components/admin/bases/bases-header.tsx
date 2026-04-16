@@ -18,7 +18,7 @@ export function BasesHeader({ totalCount, categories, subcategories, colors, siz
 
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Основи</h1>
           <p className="text-muted-foreground" suppressHydrationWarning>
@@ -27,7 +27,7 @@ export function BasesHeader({ totalCount, categories, subcategories, colors, siz
         </div>
         <button
           onClick={() => setIsDialogOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="flex w-fit items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           suppressHydrationWarning
         >
           <Plus className="h-4 w-4" />

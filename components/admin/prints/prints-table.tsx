@@ -68,7 +68,72 @@ export function PrintsTable({ prints, categories, onSuccess }: PrintsTableProps)
         </h3>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile card list */}
+      <div className="flex flex-col gap-2 px-4 pb-4 lg:hidden">
+        {filteredPrints.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12">
+            <ImageIcon className="h-8 w-8 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              {searchQuery ? "\u041f\u0440\u0438\u043d\u0442\u0456\u0432 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e" : "\u041f\u0440\u0438\u043d\u0442\u0438 \u0449\u0435 \u043d\u0435 \u0434\u043e\u0434\u0430\u043d\u0456"}
+            </p>
+          </div>
+        ) : (
+          filteredPrints.map((print) => (
+            <div key={print.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
+                {print.image_url ? (
+                  <Image
+                    src={print.image_url}
+                    alt={print.name}
+                    width={56}
+                    height={56}
+                    className="h-full w-full rounded-lg object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">{print.name}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {print.print_categories && (
+                    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground">
+                      {print.print_categories.name}
+                    </span>
+                  )}
+                  {print.print_subcategories && (
+                    <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground">
+                      {print.print_subcategories.name}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {print.price != null && Number(print.price) > 0
+                    ? `${print.price} \u0433\u0440\u043d`
+                    : "\u2014"}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => setEditingPrint(print)}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setDeletingId(print.id)}
+                  className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden lg:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-t border-border bg-muted/50 text-left text-sm text-muted-foreground">
