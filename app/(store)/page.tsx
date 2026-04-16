@@ -60,12 +60,12 @@ export default async function HomePage() {
     <>
       {/* Hero */}
       <section className="border-b bg-card">
-        <div className="mx-auto grid max-w-[1360px] items-center gap-10 px-6 py-12 md:grid-cols-2 md:px-16 md:py-20">
+        <div className="mx-auto grid max-w-[1360px] items-center gap-10 px-4 sm:px-6 py-12 md:grid-cols-2 md:px-16 md:py-20">
           <div>
             <span className="mb-4 inline-block text-xs font-bold uppercase tracking-[0.2em] text-primary">
               {UA.store.heroLabel}
             </span>
-            <h1 className="font-heading text-4xl font-bold leading-tight tracking-tight text-foreground md:text-[56px] md:leading-[1.1]">
+            <h1 className="font-heading text-3xl sm:text-4xl font-bold leading-tight tracking-tight text-foreground md:text-[56px] md:leading-[1.1]">
               {UA.store.heroTitle}
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground">
@@ -74,13 +74,13 @@ export default async function HomePage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/catalog"
-                className="inline-flex items-center gap-2 rounded-2xl bg-muted px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/70"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-muted px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/70"
               >
                 {UA.store.heroCatalogBtn}
               </Link>
               <Link
                 href="/create"
-                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
               >
                 {UA.store.heroConstructorBtn}
                 <ArrowRight className="size-4" />

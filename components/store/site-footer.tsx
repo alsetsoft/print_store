@@ -5,7 +5,7 @@ export function SiteFooter() {
   const year = new Date().getFullYear()
 
   return (
-    <footer className="border-t bg-[hsl(var(--secondary))]">
+    <footer className="border-t bg-[hsl(var(--secondary))] pb-safe">
       <div className="mx-auto max-w-[1360px] px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {/* Logo + tagline */}

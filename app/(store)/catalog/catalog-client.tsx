@@ -3,11 +3,14 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Package, ChevronLeft, ChevronRight, Search, ChevronDown } from "lucide-react"
+import { Package, ChevronLeft, ChevronRight, Search, ChevronDown, SlidersHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CatalogSidebar } from "@/components/store/catalog-sidebar"
 import { ProductCard } from "@/components/store/product-card"
 import { UA } from "@/lib/translations"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number | null }
@@ -60,6 +63,8 @@ export function CatalogPageClient({
   const [localSearch, setLocalSearch] = useState(initialSearch)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sortOpen, setSortOpen] = useState(false)
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     setLocalSearch(initialSearch)
@@ -157,18 +162,57 @@ export function CatalogPageClient({
 
       {/* Sidebar + Grid */}
       <div className="flex flex-col gap-6 lg:flex-row">
-        <CatalogSidebar
-          categories={categories}
-          subcategories={subcategories}
-          groups={groups}
-          activeCategoryId={initialCategoryId}
-          activeSubcategoryId={initialSubcategoryId}
-          onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
-          onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
-          printCategories={printCategories}
-          activePrintCategoryId={initialPrintCategoryId ?? null}
-          onPrintCategoryChange={(id) => navigate({ print_category: id, page: 1 })}
-        />
+        {/* Mobile: Filter button + Drawer */}
+        {isMobile ? (
+          <>
+            <button
+              onClick={() => setFilterDrawerOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted lg:hidden"
+            >
+              <SlidersHorizontal className="size-4" />
+              {"\u0424\u0456\u043b\u044c\u0442\u0440\u0438"}
+              {(initialCategoryId || initialSubcategoryId || initialPrintCategoryId) && (
+                <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {[initialCategoryId, initialSubcategoryId, initialPrintCategoryId].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+            <Drawer open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>{"\u0424\u0456\u043b\u044c\u0442\u0440\u0438"}</DrawerTitle>
+                </DrawerHeader>
+                <ScrollArea className="max-h-[60vh] px-4 pb-4">
+                  <CatalogSidebar
+                    categories={categories}
+                    subcategories={subcategories}
+                    groups={groups}
+                    activeCategoryId={initialCategoryId}
+                    activeSubcategoryId={initialSubcategoryId}
+                    onCategoryChange={(id) => { navigate({ category: id, subcategory: null, page: 1 }); setFilterDrawerOpen(false) }}
+                    onSubcategoryChange={(id) => { navigate({ subcategory: id, page: 1 }); setFilterDrawerOpen(false) }}
+                    printCategories={printCategories}
+                    activePrintCategoryId={initialPrintCategoryId ?? null}
+                    onPrintCategoryChange={(id) => { navigate({ print_category: id, page: 1 }); setFilterDrawerOpen(false) }}
+                  />
+                </ScrollArea>
+              </DrawerContent>
+            </Drawer>
+          </>
+        ) : (
+          <CatalogSidebar
+            categories={categories}
+            subcategories={subcategories}
+            groups={groups}
+            activeCategoryId={initialCategoryId}
+            activeSubcategoryId={initialSubcategoryId}
+            onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
+            onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
+            printCategories={printCategories}
+            activePrintCategoryId={initialPrintCategoryId ?? null}
+            onPrintCategoryChange={(id) => navigate({ print_category: id, page: 1 })}
+          />
+        )}
 
         <div className="flex-1">
           {/* Results header */}
@@ -261,7 +305,7 @@ function Pagination({
       <a
         href={page > 1 ? buildUrl(page - 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-xl border text-sm transition-colors",
+          "flex size-10 sm:size-9 items-center justify-center rounded-xl border text-sm transition-colors",
           page > 1
             ? "hover:bg-accent cursor-pointer"
             : "pointer-events-none opacity-40"
@@ -295,7 +339,7 @@ function Pagination({
       <a
         href={page < totalPages ? buildUrl(page + 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-xl border text-sm transition-colors",
+          "flex size-10 sm:size-9 items-center justify-center rounded-xl border text-sm transition-colors",
           page < totalPages
             ? "hover:bg-accent cursor-pointer"
             : "pointer-events-none opacity-40"

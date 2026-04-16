@@ -107,7 +107,7 @@ export function CartPageClient() {
                     <div className="flex items-center gap-0">
                       <button
                         onClick={() => updateQuantity(item.id, item.type, item.quantity - 1)}
-                        className="flex size-8 items-center justify-center rounded-l-md border border-border text-muted-foreground transition-colors hover:bg-muted"
+                        className="flex size-10 sm:size-8 items-center justify-center rounded-l-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                       >
                         <Minus className="size-3.5" />
                       </button>
@@ -126,11 +126,11 @@ export function CartPageClient() {
                             updateQuantity(item.id, item.type, 1)
                           }
                         }}
-                        className="flex h-8 w-10 items-center justify-center border-y border-border bg-transparent text-center text-sm font-medium outline-none"
+                        className="flex h-10 w-12 sm:h-8 sm:w-10 items-center justify-center border-y border-border bg-transparent text-center text-sm font-medium outline-none"
                       />
                       <button
                         onClick={() => updateQuantity(item.id, item.type, item.quantity + 1)}
-                        className="flex size-8 items-center justify-center rounded-r-md border border-border text-muted-foreground transition-colors hover:bg-muted"
+                        className="flex size-10 sm:size-8 items-center justify-center rounded-r-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                       >
                         <Plus className="size-3.5" />
                       </button>

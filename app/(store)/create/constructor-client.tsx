@@ -19,6 +19,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -201,9 +203,12 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   // Active tab
   const [activeTab, setActiveTab] = useState<ElementType>("image")
 
-  // Mobile collapsible sections
+  // Mobile
+  const isMobile = useIsMobile()
   const [viewsOpen, setViewsOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [zonesDrawerOpen, setZonesDrawerOpen] = useState(false)
+  const [addElementDrawerOpen, setAddElementDrawerOpen] = useState(false)
 
   // Canvas measurement
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -337,8 +342,12 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       }
       if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
     }
-    window.addEventListener("mouseup", up)
-    return () => window.removeEventListener("mouseup", up)
+    window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", up)
+    return () => {
+      window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", up)
+    }
   }, [])
 
   // -------------------------------------------------------------------------
@@ -503,7 +512,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const elementsRef = useRef(elements)
   elementsRef.current = elements
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const elId = selectedElementIdRef.current
     if (!elId) return
 
@@ -575,7 +584,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     }
   }, [isDragging, isResizing, resizeStartPos, resizeStartScale, currentImage, imageRect, constrainPos])
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     setIsDragging(false)
     setIsResizing(null)
     setSnappedAxis({ x: false, y: false })
@@ -717,133 +726,458 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     return areaA - areaB
   })
 
+  // Shared sidebar content renderers for reuse in both desktop sidebars and mobile drawers
+  const renderZonesContent = () => (
+    <>
+      <div className="flex-1 overflow-y-auto p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {"\u0417\u043e\u043d\u0430 \u0440\u043e\u0437\u043c\u0456\u0449\u0435\u043d\u043d\u044f"}
+        </p>
+        {currentImage?.zones.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {"\u0417\u043e\u043d\u0438 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0456"}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {sortedZones.map((z, idx) => {
+              const active = (selectedZoneId ?? currentImage?.zones[0]?.id) === z.id
+              const area = z.width * z.height
+              const sizeLabel = area < 500 ? "S" : area < 1500 ? "M" : area < 3000 ? "L" : "XL"
+              return (
+                <button
+                  key={z.id}
+                  onClick={() => { setSelectedZoneId(z.id); setSelectedElementId(null); if (isMobile) setZonesDrawerOpen(false) }}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
+                    active
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border hover:border-primary/30 hover:bg-muted/50"
+                  )}
+                >
+                  <div className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  )}>
+                    {sizeLabel}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn(
+                      "truncate text-sm font-medium",
+                      active ? "text-primary" : "text-foreground"
+                    )}>
+                      {z.name || `\u0417\u043e\u043d\u0430 ${idx + 1}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {Math.round(z.width)}&times;{Math.round(z.height)}%
+                    </p>
+                  </div>
+                  {z.price != null && z.price > 0 && (
+                    <span className="shrink-0 text-sm font-semibold text-foreground">
+                      +{z.price} {"\u0433\u0440\u043d"}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Elements list */}
+      {elements.length > 0 && (
+        <div className="border-t border-border p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Layers className="mr-1 inline-block h-3.5 w-3.5" />
+            {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
+          </p>
+          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
+            {elements.map((el) => (
+              <div
+                key={el.id}
+                onClick={() => setSelectedElementId(el.id)}
+                className={cn(
+                  "flex items-center justify-between rounded-lg border px-3 py-2 text-xs cursor-pointer transition-all",
+                  selectedElementId === el.id
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border text-foreground hover:bg-muted/50"
+                )}
+              >
+                <span className="truncate">
+                  {el.type === "image" ? "\u041c\u0430\u043b\u044e\u043d\u043e\u043a"
+                    : el.type === "print" ? "\u041f\u0440\u0438\u043d\u0442"
+                    : el.type === "text" ? `"${el.text?.slice(0, 15)}..."`
+                    : "QR"}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteElement(el.id) }}
+                  className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const renderCatalogContent = () => (
+    <>
+      {/* Tab selector */}
+      <div className="border-b border-border p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0449\u043e \u0434\u043e\u0434\u0430\u0442\u0438"}
+        </p>
+        <div className="grid grid-cols-5 gap-2">
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            const active = activeTab === tab.type
+            return (
+              <button
+                key={tab.type}
+                onClick={() => setActiveTab(tab.type)}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted/50"
+                )}
+              >
+                <Icon className="h-5 w-5" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {activeTab === "image" && (
+          <ImageTab onUpload={handleImageUpload} />
+        )}
+        {activeTab === "print" && (
+          <PrintTab prints={prints} categories={printCategories} subcategories={printSubcategories} onSelect={handleAddPrint} />
+        )}
+        {activeTab === "text" && (
+          <TextTab
+            text={textInput}
+            onTextChange={setTextInput}
+            color={textColor}
+            onColorChange={setTextColor}
+            font={textFont}
+            onFontChange={setTextFont}
+            align={textAlign}
+            onAlignChange={setTextAlign}
+            onAdd={handleAddText}
+            fonts={fonts}
+            onFontUpload={handleFontUpload}
+          />
+        )}
+        {activeTab === "qr" && (
+          <QrTab
+            value={qrInput}
+            onChange={setQrInput}
+            onAdd={handleAddQr}
+          />
+        )}
+        {activeTab === "ai" && (
+          <AiTab onAdd={handleAddAiImage} />
+        )}
+      </div>
+    </>
+  )
+
+  const renderSelectedElementControls = () => selectedElement && (
+    <div className="border-t border-border p-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {"\u041d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0443"}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            setElements((prev) =>
+              prev.map((el) =>
+                el.id === selectedElementId
+                  ? { ...el, scale: Math.max(10, el.scale - 10) }
+                  : el
+              )
+            )
+          }}
+          className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
+        >
+          <ZoomOut className="h-3.5 w-3.5" />
+        </button>
+        <input
+          type="range"
+          min={10}
+          max={100}
+          value={selectedElement.scale}
+          onChange={(e) => {
+            const val = Number(e.target.value)
+            setElements((prev) =>
+              prev.map((el) => el.id === selectedElementId ? { ...el, scale: val } : el)
+            )
+          }}
+          className="flex-1 accent-primary"
+        />
+        <button
+          onClick={() => {
+            setElements((prev) =>
+              prev.map((el) =>
+                el.id === selectedElementId
+                  ? { ...el, scale: Math.min(100, el.scale + 10) }
+                  : el
+              )
+            )
+          }}
+          className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
+        >
+          <ZoomIn className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          onClick={() => toggleFlip(selectedElement.id)}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-all",
+            selectedElement.flipped
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:bg-muted"
+          )}
+        >
+          <FlipHorizontal2 className="h-3.5 w-3.5" />
+          {"\u0414\u0437\u0435\u0440\u043a\u0430\u043b\u043e"}
+        </button>
+        <button
+          onClick={() => {
+            setElements((prev) =>
+              prev.map((el) =>
+                el.id === selectedElementId
+                  ? { ...el, position: { x: 50, y: 50 }, scale: 50, flipped: false }
+                  : el
+              )
+            )
+          }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {"\u0421\u043a\u0438\u043d\u0443\u0442\u0438"}
+        </button>
+        <button
+          onClick={() => deleteElement(selectedElement.id)}
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+
+  const renderSizeAndCart = () => (
+    <div className="mt-auto border-t border-border p-4">
+      {currentSizes.length > 0 && (
+        <div className="mb-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {"\u0420\u043e\u0437\u043c\u0456\u0440"}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {currentSizes.map((size) => (
+              <button
+                key={size.id}
+                onClick={() => setSelectedSizeId(size.id)}
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
+                  selectedSizeId === size.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/30"
+                )}
+              >
+                {size.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Price breakdown */}
+      <div className="mb-3 space-y-1">
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{"\u041e\u0441\u043d\u043e\u0432\u0430"}</span>
+          <span>{basePrice} {"\u0433\u0440\u043d"}</span>
+        </div>
+        {zonesPrice > 0 && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>{"\u0417\u043e\u043d\u0438 \u0434\u0440\u0443\u043a\u0443"}</span>
+            <span>+{zonesPrice} {"\u0433\u0440\u043d"}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-border pt-1 text-base font-bold text-foreground">
+          <span>{"\u0420\u0430\u0437\u043e\u043c"}</span>
+          <span>{totalPrice} {"\u0433\u0440\u043d"}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={async () => {
+          // Generate preview — fetch images as blobs to avoid CORS taint
+          let previewDataUrl: string | null = null
+          if (imageRef.current && imageRect) {
+            try {
+              const S = 400
+              const tempCanvas = document.createElement("canvas")
+              tempCanvas.width = S
+              tempCanvas.height = S
+              const tempCtx = tempCanvas.getContext("2d")
+              if (tempCtx) {
+                // Helper: fetch image as blob and create an Image from it
+                const loadImage = (url: string): Promise<HTMLImageElement> =>
+                  fetch(url)
+                    .then((r) => r.blob())
+                    .then((blob) => {
+                      const objUrl = URL.createObjectURL(blob)
+                      return new Promise<HTMLImageElement>((resolve, reject) => {
+                        const img = new Image()
+                        img.onload = () => { URL.revokeObjectURL(objUrl); resolve(img) }
+                        img.onerror = () => { URL.revokeObjectURL(objUrl); reject() }
+                        img.src = objUrl
+                      })
+                    })
+
+                // Draw base image
+                const baseImg = await loadImage(imageRef.current.src)
+                const ratio = baseImg.naturalWidth / baseImg.naturalHeight
+                let rw: number, rh: number
+                if (ratio > 1) { rw = S; rh = S / ratio }
+                else { rh = S; rw = S * ratio }
+                const ox = (S - rw) / 2
+                const oy = (S - rh) / 2
+                tempCtx.drawImage(baseImg, ox, oy, rw, rh)
+
+                // Draw design elements on top
+                for (const el of elements) {
+                  const zone = allImages.flatMap((i) => i.zones).find((z) => z.id === el.zoneId)
+                  if (!zone) continue
+
+                  const zx = ox + (zone.x / 100) * rw
+                  const zy = oy + (zone.y / 100) * rh
+                  const zw = (zone.width / 100) * rw
+                  const zh = (zone.height / 100) * rh
+
+                  if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
+                    try {
+                      const elImg = await loadImage(el.imageUrl)
+                      const elRatio = elImg.naturalWidth / elImg.naturalHeight
+                      const pw = (el.scale / 100) * zw
+                      const ph = pw / elRatio
+                      const cx = zx + (el.position.x / 100) * zw
+                      const cy = zy + (el.position.y / 100) * zh
+
+                      tempCtx.save()
+                      if (el.flipped) {
+                        tempCtx.translate(cx, cy)
+                        tempCtx.scale(-1, 1)
+                        tempCtx.drawImage(elImg, -pw / 2, -ph / 2, pw, ph)
+                      } else {
+                        tempCtx.drawImage(elImg, cx - pw / 2, cy - ph / 2, pw, ph)
+                      }
+                      tempCtx.restore()
+                    } catch {
+                      // skip this element if fetch fails
+                    }
+                  } else if (el.type === "text" && el.text) {
+                    const fontSize = Math.max(8, (el.scale / 100) * zw * 0.3)
+                    tempCtx.save()
+                    tempCtx.font = `700 ${fontSize}px ${el.fontFamily ?? "sans-serif"}`
+                    tempCtx.fillStyle = el.textColor ?? "#000"
+                    tempCtx.textAlign = (el.textAlign as CanvasTextAlign) ?? "center"
+                    tempCtx.textBaseline = "middle"
+                    const tx = zx + (el.position.x / 100) * zw
+                    const ty = zy + (el.position.y / 100) * zh
+                    tempCtx.fillText(el.text, tx, ty)
+                    tempCtx.restore()
+                  }
+                }
+
+                previewDataUrl = tempCanvas.toDataURL("image/jpeg", 0.7)
+              }
+            } catch (e) {
+              console.error("Preview generation failed:", e)
+            }
+          }
+
+          const selectedColor = currentColors.find((c) => c.id === selectedColorId)
+          const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
+
+          const constructorState = {
+            baseId: currentBase.id,
+            colorId: selectedColorId,
+            sizeId: selectedSizeId,
+            imgIndex: safeImgIndex,
+            elements: elements,
+          }
+
+          if (editCartItemId && editCartItemType) {
+            // Update existing cart item
+            updateItem(editCartItemId, editCartItemType, {
+              name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+              price: totalPrice,
+              imageUrl: currentImage?.url ?? null,
+              colorName: selectedColor?.name ?? undefined,
+              sizeName: selectedSize?.name ?? undefined,
+              previewDataUrl: previewDataUrl ?? undefined,
+              constructorState,
+            })
+          } else {
+            addItem({
+              id: `custom-${Date.now()}`,
+              type: "custom",
+              name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+              price: totalPrice,
+              imageUrl: currentImage?.url ?? null,
+              colorName: selectedColor?.name ?? undefined,
+              sizeName: selectedSize?.name ?? undefined,
+              previewDataUrl: previewDataUrl ?? undefined,
+              constructorState,
+            })
+          }
+          router.push("/cart")
+        }}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+      >
+        <ShoppingCart className="size-4" />
+        {editCartItemId
+          ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
+          : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
+      </button>
+    </div>
+  )
+
   return (
     <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 4rem)" }}>
 
       {/* ----------------------------------------------------------------- */}
-      {/* LEFT SIDEBAR — Views + Zones                                       */}
+      {/* LEFT SIDEBAR — Views + Zones (desktop only)                        */}
       {/* ----------------------------------------------------------------- */}
-      <div className="order-2 flex shrink-0 flex-col border-r border-border bg-card lg:order-1 lg:w-72">
-        {/* Mobile collapsible header */}
-        <button
-          onClick={() => setViewsOpen((v) => !v)}
-          className="flex items-center justify-between border-b border-border p-3 lg:hidden"
-        >
-          <span className="text-sm font-semibold text-foreground">
-            {"\u0412\u0438\u0433\u043b\u044f\u0434\u0438 \u0442\u0430 \u0437\u043e\u043d\u0438"}
-          </span>
-          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", viewsOpen && "rotate-180")} />
-        </button>
-        <div className={cn("flex flex-col lg:!block", viewsOpen ? "block" : "hidden lg:block")}>
-        {/* Zone selector */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {"\u0417\u043e\u043d\u0430 \u0440\u043e\u0437\u043c\u0456\u0449\u0435\u043d\u043d\u044f"}
-          </p>
-          {currentImage?.zones.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {"\u0417\u043e\u043d\u0438 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0456"}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {sortedZones.map((z, idx) => {
-                const active = (selectedZoneId ?? currentImage?.zones[0]?.id) === z.id
-                const area = z.width * z.height
-                const sizeLabel = area < 500 ? "S" : area < 1500 ? "M" : area < 3000 ? "L" : "XL"
-                return (
-                  <button
-                    key={z.id}
-                    onClick={() => { setSelectedZoneId(z.id); setSelectedElementId(null) }}
-                    className={cn(
-                      "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
-                      active
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border hover:border-primary/30 hover:bg-muted/50"
-                    )}
-                  >
-                    <div className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    )}>
-                      {sizeLabel}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn(
-                        "truncate text-sm font-medium",
-                        active ? "text-primary" : "text-foreground"
-                      )}>
-                        {z.name || `\u0417\u043e\u043d\u0430 ${idx + 1}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {Math.round(z.width)}&times;{Math.round(z.height)}%
-                      </p>
-                    </div>
-                    {z.price != null && z.price > 0 && (
-                      <span className="shrink-0 text-sm font-semibold text-foreground">
-                        +{z.price} {"\u0433\u0440\u043d"}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Elements list */}
-        {elements.length > 0 && (
-          <div className="border-t border-border p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Layers className="mr-1 inline-block h-3.5 w-3.5" />
-              {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
-            </p>
-            <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-              {elements.map((el) => (
-                <div
-                  key={el.id}
-                  onClick={() => setSelectedElementId(el.id)}
-                  className={cn(
-                    "flex items-center justify-between rounded-lg border px-3 py-2 text-xs cursor-pointer transition-all",
-                    selectedElementId === el.id
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-foreground hover:bg-muted/50"
-                  )}
-                >
-                  <span className="truncate">
-                    {el.type === "image" ? "\u041c\u0430\u043b\u044e\u043d\u043e\u043a"
-                      : el.type === "print" ? "\u041f\u0440\u0438\u043d\u0442"
-                      : el.type === "text" ? `"${el.text?.slice(0, 15)}..."`
-                      : "QR"}
-                  </span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteElement(el.id) }}
-                    className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        </div>{/* end mobile collapsible wrapper */}
+      <div className="hidden lg:flex shrink-0 flex-col border-r border-border bg-card lg:order-1 lg:w-72">
+        {renderZonesContent()}
       </div>
 
       {/* ----------------------------------------------------------------- */}
       {/* CENTER — Canvas                                                    */}
       {/* ----------------------------------------------------------------- */}
-      <div className="order-1 flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:order-2 lg:p-8">
+      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:order-2 lg:p-8", isMobile && "pb-20")}>
         {currentImage ? (
           <>
             <div
               ref={canvasRef}
-              className="relative w-full select-none"
-              style={{ maxWidth: 560, aspectRatio: "1 / 1" }}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              className="relative w-full select-none constructor-canvas"
+              style={{ maxWidth: 560, aspectRatio: "1 / 1", touchAction: "none" }}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
               onClick={() => setSelectedElementId(null)}
             >
               <img
@@ -1063,348 +1397,102 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       </div>
 
       {/* ----------------------------------------------------------------- */}
-      {/* RIGHT PANEL — Tabs                                                 */}
+      {/* RIGHT PANEL — Tabs (desktop only)                                  */}
       {/* ----------------------------------------------------------------- */}
-      <div className="order-3 flex w-full shrink-0 flex-col border-l border-border bg-card lg:w-96">
-        {/* Mobile collapsible header */}
-        <button
-          onClick={() => setCatalogOpen((v) => !v)}
-          className="flex items-center justify-between border-b border-border p-3 lg:hidden"
-        >
-          <span className="text-sm font-semibold text-foreground">
-            {"\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0442\u0430 \u043f\u0440\u0438\u043d\u0442\u0438"}
-          </span>
-          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", catalogOpen && "rotate-180")} />
-        </button>
-        <div className={cn("flex flex-col lg:!flex", catalogOpen ? "flex" : "hidden lg:flex")}>
-        {/* Tab selector */}
-        <div className="border-b border-border p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0449\u043e \u0434\u043e\u0434\u0430\u0442\u0438"}
-          </p>
-          <div className="grid grid-cols-5 gap-2">
-            {TABS.map((tab) => {
-              const Icon = tab.icon
-              const active = activeTab === tab.type
-              return (
+      <div className="hidden lg:flex order-3 w-full shrink-0 flex-col border-l border-border bg-card lg:w-96">
+        {renderCatalogContent()}
+        {renderSelectedElementControls()}
+        {renderSizeAndCart()}
+      </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* MOBILE — Floating bottom toolbar + Drawers                         */}
+      {/* ----------------------------------------------------------------- */}
+      {isMobile && (
+        <>
+          {/* Floating toolbar */}
+          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 border-t-2 border-primary/30 bg-white p-2.5 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.12)] lg:hidden">
+            <button
+              onClick={() => setZonesDrawerOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground"
+            >
+              <Layers className="h-4 w-4" />
+              {"\u0417\u043e\u043d\u0438"}
+              {currentZone && (
+                <span className="max-w-[60px] truncate text-muted-foreground">{currentZone.name || "\u0417\u043e\u043d\u0430"}</span>
+              )}
+            </button>
+            <button
+              onClick={() => setAddElementDrawerOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 py-2 text-xs font-medium text-primary"
+            >
+              <ImagePlus className="h-4 w-4" />
+              {"\u0414\u043e\u0434\u0430\u0442\u0438"}
+            </button>
+
+            {selectedElement && (
+              <div className="ml-auto flex items-center gap-1.5">
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={selectedElement.scale}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setElements((prev) =>
+                      prev.map((el) => el.id === selectedElementId ? { ...el, scale: val } : el)
+                    )
+                  }}
+                  className="w-20 accent-primary"
+                />
                 <button
-                  key={tab.type}
-                  onClick={() => setActiveTab(tab.type)}
-                  className={cn(
-                    "flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all",
-                    active
-                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted/50"
-                  )}
+                  onClick={() => toggleFlip(selectedElement.id)}
+                  className="rounded-lg border border-border p-1.5 text-muted-foreground"
                 >
-                  <Icon className="h-5 w-5" />
-                  {tab.label}
+                  <FlipHorizontal2 className="h-3.5 w-3.5" />
                 </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {activeTab === "image" && (
-            <ImageTab onUpload={handleImageUpload} />
-          )}
-          {activeTab === "print" && (
-            <PrintTab prints={prints} categories={printCategories} subcategories={printSubcategories} onSelect={handleAddPrint} />
-          )}
-          {activeTab === "text" && (
-            <TextTab
-              text={textInput}
-              onTextChange={setTextInput}
-              color={textColor}
-              onColorChange={setTextColor}
-              font={textFont}
-              onFontChange={setTextFont}
-              align={textAlign}
-              onAlignChange={setTextAlign}
-              onAdd={handleAddText}
-              fonts={fonts}
-              onFontUpload={handleFontUpload}
-            />
-          )}
-          {activeTab === "qr" && (
-            <QrTab
-              value={qrInput}
-              onChange={setQrInput}
-              onAdd={handleAddQr}
-            />
-          )}
-          {activeTab === "ai" && (
-            <AiTab onAdd={handleAddAiImage} />
-          )}
-        </div>
-        </div>{/* end mobile collapsible wrapper */}
-
-        {/* Selected element controls */}
-        {selectedElement && (
-          <div className="border-t border-border p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {"\u041d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0443"}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setElements((prev) =>
-                    prev.map((el) =>
-                      el.id === selectedElementId
-                        ? { ...el, scale: Math.max(10, el.scale - 10) }
-                        : el
-                    )
-                  )
-                }}
-                className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
-              >
-                <ZoomOut className="h-3.5 w-3.5" />
-              </button>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                value={selectedElement.scale}
-                onChange={(e) => {
-                  const val = Number(e.target.value)
-                  setElements((prev) =>
-                    prev.map((el) => el.id === selectedElementId ? { ...el, scale: val } : el)
-                  )
-                }}
-                className="flex-1 accent-primary"
-              />
-              <button
-                onClick={() => {
-                  setElements((prev) =>
-                    prev.map((el) =>
-                      el.id === selectedElementId
-                        ? { ...el, scale: Math.min(100, el.scale + 10) }
-                        : el
-                    )
-                  )
-                }}
-                className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
-              >
-                <ZoomIn className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={() => toggleFlip(selectedElement.id)}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-all",
-                  selectedElement.flipped
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <FlipHorizontal2 className="h-3.5 w-3.5" />
-                {"\u0414\u0437\u0435\u0440\u043a\u0430\u043b\u043e"}
-              </button>
-              <button
-                onClick={() => {
-                  setElements((prev) =>
-                    prev.map((el) =>
-                      el.id === selectedElementId
-                        ? { ...el, position: { x: 50, y: 50 }, scale: 50, flipped: false }
-                        : el
-                    )
-                  )
-                }}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                {"\u0421\u043a\u0438\u043d\u0443\u0442\u0438"}
-              </button>
-              <button
-                onClick={() => deleteElement(selectedElement.id)}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Size selector + Add to cart */}
-        <div className="mt-auto border-t border-border p-4">
-          {currentSizes.length > 0 && (
-            <div className="mb-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                {"\u0420\u043e\u0437\u043c\u0456\u0440"}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {currentSizes.map((size) => (
-                  <button
-                    key={size.id}
-                    onClick={() => setSelectedSizeId(size.id)}
-                    className={cn(
-                      "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
-                      selectedSizeId === size.id
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:border-primary/30"
-                    )}
-                  >
-                    {size.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {/* Price breakdown */}
-          <div className="mb-3 space-y-1">
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>{"\u041e\u0441\u043d\u043e\u0432\u0430"}</span>
-              <span>{basePrice} {"\u0433\u0440\u043d"}</span>
-            </div>
-            {zonesPrice > 0 && (
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{"\u0417\u043e\u043d\u0438 \u0434\u0440\u0443\u043a\u0443"}</span>
-                <span>+{zonesPrice} {"\u0433\u0440\u043d"}</span>
+                <button
+                  onClick={() => deleteElement(selectedElement.id)}
+                  className="rounded-lg border border-destructive/30 p-1.5 text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             )}
-            <div className="flex items-center justify-between border-t border-border pt-1 text-base font-bold text-foreground">
-              <span>{"\u0420\u0430\u0437\u043e\u043c"}</span>
-              <span>{totalPrice} {"\u0433\u0440\u043d"}</span>
-            </div>
+
+            {!selectedElement && (
+              <span className="ml-auto text-xs font-bold text-foreground">
+                {totalPrice} {"\u0433\u0440\u043d"}
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={async () => {
-              // Generate preview — fetch images as blobs to avoid CORS taint
-              let previewDataUrl: string | null = null
-              if (imageRef.current && imageRect) {
-                try {
-                  const S = 400
-                  const tempCanvas = document.createElement("canvas")
-                  tempCanvas.width = S
-                  tempCanvas.height = S
-                  const tempCtx = tempCanvas.getContext("2d")
-                  if (tempCtx) {
-                    // Helper: fetch image as blob and create an Image from it
-                    const loadImage = (url: string): Promise<HTMLImageElement> =>
-                      fetch(url)
-                        .then((r) => r.blob())
-                        .then((blob) => {
-                          const objUrl = URL.createObjectURL(blob)
-                          return new Promise<HTMLImageElement>((resolve, reject) => {
-                            const img = new Image()
-                            img.onload = () => { URL.revokeObjectURL(objUrl); resolve(img) }
-                            img.onerror = () => { URL.revokeObjectURL(objUrl); reject() }
-                            img.src = objUrl
-                          })
-                        })
+          {/* Zones drawer */}
+          <Drawer open={zonesDrawerOpen} onOpenChange={setZonesDrawerOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>{"\u0417\u043e\u043d\u0438 \u0442\u0430 \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0438"}</DrawerTitle>
+              </DrawerHeader>
+              <ScrollArea className="max-h-[60vh]">
+                {renderZonesContent()}
+              </ScrollArea>
+            </DrawerContent>
+          </Drawer>
 
-                    // Draw base image
-                    const baseImg = await loadImage(imageRef.current.src)
-                    const ratio = baseImg.naturalWidth / baseImg.naturalHeight
-                    let rw: number, rh: number
-                    if (ratio > 1) { rw = S; rh = S / ratio }
-                    else { rh = S; rw = S * ratio }
-                    const ox = (S - rw) / 2
-                    const oy = (S - rh) / 2
-                    tempCtx.drawImage(baseImg, ox, oy, rw, rh)
-
-                    // Draw design elements on top
-                    for (const el of elements) {
-                      const zone = allImages.flatMap((i) => i.zones).find((z) => z.id === el.zoneId)
-                      if (!zone) continue
-
-                      const zx = ox + (zone.x / 100) * rw
-                      const zy = oy + (zone.y / 100) * rh
-                      const zw = (zone.width / 100) * rw
-                      const zh = (zone.height / 100) * rh
-
-                      if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
-                        try {
-                          const elImg = await loadImage(el.imageUrl)
-                          const elRatio = elImg.naturalWidth / elImg.naturalHeight
-                          const pw = (el.scale / 100) * zw
-                          const ph = pw / elRatio
-                          const cx = zx + (el.position.x / 100) * zw
-                          const cy = zy + (el.position.y / 100) * zh
-
-                          tempCtx.save()
-                          if (el.flipped) {
-                            tempCtx.translate(cx, cy)
-                            tempCtx.scale(-1, 1)
-                            tempCtx.drawImage(elImg, -pw / 2, -ph / 2, pw, ph)
-                          } else {
-                            tempCtx.drawImage(elImg, cx - pw / 2, cy - ph / 2, pw, ph)
-                          }
-                          tempCtx.restore()
-                        } catch {
-                          // skip this element if fetch fails
-                        }
-                      } else if (el.type === "text" && el.text) {
-                        const fontSize = Math.max(8, (el.scale / 100) * zw * 0.3)
-                        tempCtx.save()
-                        tempCtx.font = `700 ${fontSize}px ${el.fontFamily ?? "sans-serif"}`
-                        tempCtx.fillStyle = el.textColor ?? "#000"
-                        tempCtx.textAlign = (el.textAlign as CanvasTextAlign) ?? "center"
-                        tempCtx.textBaseline = "middle"
-                        const tx = zx + (el.position.x / 100) * zw
-                        const ty = zy + (el.position.y / 100) * zh
-                        tempCtx.fillText(el.text, tx, ty)
-                        tempCtx.restore()
-                      }
-                    }
-
-                    previewDataUrl = tempCanvas.toDataURL("image/jpeg", 0.7)
-                  }
-                } catch (e) {
-                  console.error("Preview generation failed:", e)
-                }
-              }
-
-              const selectedColor = currentColors.find((c) => c.id === selectedColorId)
-              const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
-
-              const constructorState = {
-                baseId: currentBase.id,
-                colorId: selectedColorId,
-                sizeId: selectedSizeId,
-                imgIndex: safeImgIndex,
-                elements: elements,
-              }
-
-              if (editCartItemId && editCartItemType) {
-                // Update existing cart item
-                updateItem(editCartItemId, editCartItemType, {
-                  name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
-                  price: totalPrice,
-                  imageUrl: currentImage?.url ?? null,
-                  colorName: selectedColor?.name ?? undefined,
-                  sizeName: selectedSize?.name ?? undefined,
-                  previewDataUrl: previewDataUrl ?? undefined,
-                  constructorState,
-                })
-              } else {
-                addItem({
-                  id: `custom-${Date.now()}`,
-                  type: "custom",
-                  name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
-                  price: totalPrice,
-                  imageUrl: currentImage?.url ?? null,
-                  colorName: selectedColor?.name ?? undefined,
-                  sizeName: selectedSize?.name ?? undefined,
-                  previewDataUrl: previewDataUrl ?? undefined,
-                  constructorState,
-                })
-              }
-              router.push("/cart")
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-          >
-            <ShoppingCart className="size-4" />
-            {editCartItemId
-              ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
-              : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
-          </button>
-        </div>
-      </div>
+          {/* Add element drawer */}
+          <Drawer open={addElementDrawerOpen} onOpenChange={setAddElementDrawerOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>{"\u0414\u043e\u0434\u0430\u0442\u0438 \u0435\u043b\u0435\u043c\u0435\u043d\u0442"}</DrawerTitle>
+              </DrawerHeader>
+              <ScrollArea className="max-h-[60vh]">
+                {renderCatalogContent()}
+                {renderSizeAndCart()}
+              </ScrollArea>
+            </DrawerContent>
+          </Drawer>
+        </>
+      )}
 
       {/* Base picker modal */}
       <BasePickerModal
@@ -1739,9 +1827,9 @@ function CanvasElementView({
   element: CanvasElement
   isSelected: boolean
   isDragging: boolean
-  onSelect: (e: React.MouseEvent) => void
-  onDragStart: (e: React.MouseEvent) => void
-  onResizeStart: (dir: "shrink" | "grow", e: React.MouseEvent) => void
+  onSelect: (e: React.PointerEvent) => void
+  onDragStart: (e: React.PointerEvent) => void
+  onResizeStart: (dir: "shrink" | "grow", e: React.PointerEvent) => void
   onFlip: () => void
   onDelete: () => void
   onDeselect: () => void
@@ -1767,7 +1855,7 @@ function CanvasElementView({
         willChange: isDragging ? "left, top" : "auto",
         zIndex: isSelected ? 20 : 10,
       }}
-      onMouseDown={onDragStart}
+      onPointerDown={onDragStart}
       onClick={onSelect}
     >
       {isImageLike && element.imageUrl && (
@@ -1806,8 +1894,8 @@ function CanvasElementView({
       {isSelected && (
         <>
           <div
-            onMouseDown={(e) => onResizeStart("shrink", e)}
-            className="absolute -left-3 -top-3 flex h-6 w-6 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
+            onPointerDown={(e) => onResizeStart("shrink", e)}
+            className="absolute -left-4 -top-4 sm:-left-3 sm:-top-3 flex h-8 w-8 sm:h-6 sm:w-6 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
           >
             <Minimize2 className="h-3 w-3 text-foreground" />
           </div>
@@ -1819,13 +1907,13 @@ function CanvasElementView({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onFlip() }}
-            className="absolute -bottom-3 -left-3 flex h-6 w-6 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
+            className="absolute -bottom-4 -left-4 sm:-bottom-3 sm:-left-3 flex h-8 w-8 sm:h-6 sm:w-6 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
           >
             <FlipHorizontal2 className="h-3 w-3 text-foreground" />
           </button>
           <div
-            onMouseDown={(e) => onResizeStart("grow", e)}
-            className="absolute -bottom-3 -right-3 flex h-6 w-6 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
+            onPointerDown={(e) => onResizeStart("grow", e)}
+            className="absolute -bottom-4 -right-4 sm:-bottom-3 sm:-right-3 flex h-8 w-8 sm:h-6 sm:w-6 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
           >
             <Maximize2 className="h-3 w-3 text-foreground" />
           </div>

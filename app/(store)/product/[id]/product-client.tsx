@@ -319,13 +319,13 @@ function ProductPreview({
           <>
             <button
               onClick={goPrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 flex size-9 items-center justify-center rounded-full bg-background/80 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+              className="absolute left-2 top-1/2 -translate-y-1/2 flex size-10 sm:size-9 items-center justify-center rounded-full bg-background/80 border shadow-sm opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100 hover:bg-background"
             >
               <ChevronLeft className="size-5" />
             </button>
             <button
               onClick={goNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 flex size-9 items-center justify-center rounded-full bg-background/80 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex size-10 sm:size-9 items-center justify-center rounded-full bg-background/80 border shadow-sm opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100 hover:bg-background"
             >
               <ChevronRight className="size-5" />
             </button>

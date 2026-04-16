@@ -94,6 +94,26 @@
   --ring: #10B981;
 }
 
+/* Propagate store theme to <body> so portals (Sheet, Drawer) inherit it */
+body:has(.store-theme) {
+  --background: #F5FAF8;
+  --foreground: #111827;
+  --card: #E7F0EC;
+  --card-foreground: #111827;
+  --primary: #10B981;
+  --primary-foreground: #ffffff;
+  --secondary: #6B7280;
+  --secondary-foreground: #ffffff;
+  --muted: #E7F0EC;
+  --muted-foreground: #6B7280;
+  --accent: #D1EDE4;
+  --accent-foreground: #111827;
+  --border: rgba(16, 185, 129, 0.2);
+  --input: transparent;
+  --input-background: #E7F0EC;
+  --ring: #10B981;
+}
+
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
@@ -144,4 +164,16 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Safe area support for notched devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Constructor canvas — prevent browser gestures during drag */
+.constructor-canvas {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }

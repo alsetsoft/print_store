@@ -4,9 +4,12 @@ import { useCallback, useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Shirt, ChevronLeft, ChevronRight, Search, Check, ChevronDown } from "lucide-react"
+import { Shirt, ChevronLeft, ChevronRight, Search, Check, ChevronDown, SlidersHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { UA } from "@/lib/translations"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number }
@@ -50,6 +53,8 @@ export function BasesPageClient({
   const [localSearch, setLocalSearch] = useState(initialSearch)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sortOpen, setSortOpen] = useState(false)
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     setLocalSearch(initialSearch)
@@ -145,14 +150,48 @@ export function BasesPageClient({
 
       {/* Sidebar + Grid */}
       <div className="flex flex-col gap-6 lg:flex-row">
-        <BasesSidebar
-          categories={categories}
-          subcategories={subcategories}
-          activeCategoryId={initialCategoryId}
-          activeSubcategoryId={initialSubcategoryId}
-          onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
-          onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
-        />
+        {isMobile ? (
+          <>
+            <button
+              onClick={() => setFilterDrawerOpen(true)}
+              className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted lg:hidden"
+            >
+              <SlidersHorizontal className="size-4" />
+              {"\u0424\u0456\u043b\u044c\u0442\u0440\u0438"}
+              {(initialCategoryId || initialSubcategoryId) && (
+                <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  {[initialCategoryId, initialSubcategoryId].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+            <Drawer open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+              <DrawerContent>
+                <DrawerHeader>
+                  <DrawerTitle>{"\u0424\u0456\u043b\u044c\u0442\u0440\u0438"}</DrawerTitle>
+                </DrawerHeader>
+                <ScrollArea className="max-h-[60vh] px-4 pb-4">
+                  <BasesSidebar
+                    categories={categories}
+                    subcategories={subcategories}
+                    activeCategoryId={initialCategoryId}
+                    activeSubcategoryId={initialSubcategoryId}
+                    onCategoryChange={(id) => { navigate({ category: id, subcategory: null, page: 1 }); setFilterDrawerOpen(false) }}
+                    onSubcategoryChange={(id) => { navigate({ subcategory: id, page: 1 }); setFilterDrawerOpen(false) }}
+                  />
+                </ScrollArea>
+              </DrawerContent>
+            </Drawer>
+          </>
+        ) : (
+          <BasesSidebar
+            categories={categories}
+            subcategories={subcategories}
+            activeCategoryId={initialCategoryId}
+            activeSubcategoryId={initialSubcategoryId}
+            onCategoryChange={(id) => navigate({ category: id, subcategory: null, page: 1 })}
+            onSubcategoryChange={(id) => navigate({ subcategory: id, page: 1 })}
+          />
+        )}
 
         <div className="flex-1">
           {/* Results header */}
@@ -378,7 +417,7 @@ function Pagination({
       <a
         href={page > 1 ? buildUrl(page - 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-md border text-sm transition-colors",
+          "flex size-10 sm:size-9 items-center justify-center rounded-md border text-sm transition-colors",
           page > 1 ? "hover:bg-accent cursor-pointer" : "pointer-events-none opacity-40"
         )}
         aria-disabled={page <= 1}
@@ -410,7 +449,7 @@ function Pagination({
       <a
         href={page < totalPages ? buildUrl(page + 1) : undefined}
         className={cn(
-          "flex size-9 items-center justify-center rounded-md border text-sm transition-colors",
+          "flex size-10 sm:size-9 items-center justify-center rounded-md border text-sm transition-colors",
           page < totalPages ? "hover:bg-accent cursor-pointer" : "pointer-events-none opacity-40"
         )}
         aria-disabled={page >= totalPages}
