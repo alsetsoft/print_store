@@ -111,9 +111,23 @@ export function CartPageClient() {
                       >
                         <Minus className="size-3.5" />
                       </button>
-                      <span className="flex h-8 w-10 items-center justify-center border-y border-border text-sm font-medium">
-                        {item.quantity}
-                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "")
+                          if (val === "") return
+                          const num = parseInt(val, 10)
+                          if (num >= 1) updateQuantity(item.id, item.type, num)
+                        }}
+                        onBlur={(e) => {
+                          if (!e.target.value || parseInt(e.target.value, 10) < 1) {
+                            updateQuantity(item.id, item.type, 1)
+                          }
+                        }}
+                        className="flex h-8 w-10 items-center justify-center border-y border-border bg-transparent text-center text-sm font-medium outline-none"
+                      />
                       <button
                         onClick={() => updateQuantity(item.id, item.type, item.quantity + 1)}
                         className="flex size-8 items-center justify-center rounded-r-md border border-border text-muted-foreground transition-colors hover:bg-muted"
