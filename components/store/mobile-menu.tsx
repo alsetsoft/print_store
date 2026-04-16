@@ -56,7 +56,7 @@ export function MobileMenu({ categories, subcategories, groups, printCategories,
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button className="flex size-9 items-center justify-center rounded-md border md:hidden">
+        <button className="flex size-9 items-center justify-center rounded-md border">
           <Menu className="size-5" />
         </button>
       </SheetTrigger>

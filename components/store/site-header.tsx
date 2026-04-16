@@ -73,14 +73,17 @@ export async function SiteHeader() {
           <CartButton />
         </div>
 
-        {/* Mobile menu */}
-        <MobileMenu
-          categories={categories}
-          subcategories={subcategories}
-          groups={groups}
-          printCategories={printCategories}
-          printSubcategories={printSubcategories}
-        />
+        {/* Mobile: cart + menu */}
+        <div className="flex items-center gap-2 md:hidden">
+          <CartButton />
+          <MobileMenu
+            categories={categories}
+            subcategories={subcategories}
+            groups={groups}
+            printCategories={printCategories}
+            printSubcategories={printSubcategories}
+          />
+        </div>
       </div>
     </header>
   )
