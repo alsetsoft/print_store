@@ -47,11 +47,11 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="admin-theme flex min-h-screen items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md rounded-3xl shadow-xl">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-            <Settings className="h-6 w-6 text-primary-foreground" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-sm">
+            <Settings className="h-7 w-7 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl" suppressHydrationWarning>
             {T.title}
@@ -73,6 +73,7 @@ export default function AdminLoginPage() {
               <Input
                 id="email"
                 type="email"
+                className="rounded-xl"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -83,12 +84,13 @@ export default function AdminLoginPage() {
               <Input
                 id="password"
                 type="password"
+                className="rounded-xl"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading} suppressHydrationWarning>
+            <Button type="submit" className="w-full rounded-xl" disabled={loading} suppressHydrationWarning>
               {loading ? T.logging : T.login}
             </Button>
           </form>

@@ -91,7 +91,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-6 lg:p-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight" suppressHydrationWarning>
           {T.title}

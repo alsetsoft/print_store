@@ -69,7 +69,7 @@ export default function BasesPage() {
   }, [fetchData])
 
   return (
-    <div className="p-8">
+    <div className="p-6 lg:p-8">
       <BasesHeader
         totalCount={data?.bases.length ?? 0}
         categories={data?.categories ?? []}
@@ -79,8 +79,8 @@ export default function BasesPage() {
         onSuccess={fetchData}
       />
 
-      <div className="mt-6 rounded-xl border border-border bg-card">
-        <div className="border-b border-border bg-accent/20 px-6 py-3">
+      <div className="mt-6 rounded-2xl border border-border bg-card">
+        <div className="border-b border-border bg-accent/20 px-6 py-3 rounded-t-2xl">
           <p className="text-sm text-muted-foreground">
             Основа — це базовий продукт (футболка, чашка, кепка тощо) на який наноситься принт.
           </p>

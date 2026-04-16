@@ -492,7 +492,7 @@ export default function GroupsPage() {
           </div>
           <button
             onClick={openCreateForm}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
             {"\u0421\u0442\u0432\u043E\u0440\u0438\u0442\u0438 \u0433\u0440\u0443\u043F\u0443"}
@@ -508,7 +508,7 @@ export default function GroupsPage() {
               placeholder={"\u041F\u043E\u0448\u0443\u043A \u0433\u0440\u0443\u043F..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
@@ -521,7 +521,7 @@ export default function GroupsPage() {
             </div>
           ) : filteredGroups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <FolderTree className="mb-4 h-12 w-12 text-muted-foreground/50" />
+              <FolderTree className="mb-4 h-12 w-12 text-primary/30" />
               <h3 className="mb-1 text-lg font-medium text-foreground">{"\u041D\u0435\u043C\u0430\u0454 \u0433\u0440\u0443\u043F"}</h3>
               <p className="mb-4 text-sm text-muted-foreground">
                 {searchQuery ? "\u0413\u0440\u0443\u043F \u0437\u0430 \u0437\u0430\u043F\u0438\u0442\u043E\u043C \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E" : "\u0421\u0442\u0432\u043E\u0440\u0456\u0442\u044C \u043F\u0435\u0440\u0448\u0443 \u0433\u0440\u0443\u043F\u0443 \u0442\u043E\u0432\u0430\u0440\u0456\u0432"}
@@ -542,7 +542,7 @@ export default function GroupsPage() {
                 <div
                   key={group.id}
                   onClick={() => openEditForm(group)}
-                  className="cursor-pointer rounded-xl border border-border bg-card p-5 transition-all hover:shadow-lg hover:border-primary/50"
+                  className="cursor-pointer rounded-2xl border border-border bg-card p-5 transition-all hover:shadow-lg hover:border-primary/40"
                 >
                   <div className="mb-4 flex items-start justify-between">
                     <div className="flex-1 min-w-0">

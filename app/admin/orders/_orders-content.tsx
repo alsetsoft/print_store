@@ -175,7 +175,7 @@ export default function OrdersContent() {
             placeholder={"\u041f\u043e\u0448\u0443\u043a \u0437\u0430 \u043d\u043e\u043c\u0435\u0440\u043e\u043c, \u0456\u043c\u2019\u044f\u043c \u0430\u0431\u043e \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u043e\u043c..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -218,12 +218,12 @@ export default function OrdersContent() {
             {filteredOrders.map((order) => {
               const isExpanded = expandedOrderId === order.id
               return (
-                <div key={order.id} className="overflow-hidden rounded-xl border border-border bg-card">
+                <div key={order.id} className="overflow-hidden rounded-2xl border border-border bg-card">
                   {/* Order row */}
                   <button
                     type="button"
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                    className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent/50"
+                    className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-accent/30"
                   >
                     <div className="min-w-[100px] font-mono text-sm font-semibold text-foreground">
                       {order.order_number}

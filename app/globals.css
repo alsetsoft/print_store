@@ -94,6 +94,53 @@
   --ring: #10B981;
 }
 
+.admin-theme {
+  --background: #F8FAF9;
+  --foreground: #111827;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
+  --primary: #10B981;
+  --primary-foreground: #ffffff;
+  --secondary: #F1F5F3;
+  --secondary-foreground: #374151;
+  --muted: #F1F5F3;
+  --muted-foreground: #6B7280;
+  --accent: #D1EDE4;
+  --accent-foreground: #111827;
+  --border: #E5EBE8;
+  --input: #E5EBE8;
+  --input-background: #FFFFFF;
+  --ring: #10B981;
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+}
+
+/* Propagate admin theme to <body> so portals (Sheet, Dialog) inherit it */
+body:has(.admin-theme) {
+  --background: #F8FAF9;
+  --foreground: #111827;
+  --card: #FFFFFF;
+  --card-foreground: #111827;
+  --popover: #FFFFFF;
+  --popover-foreground: #111827;
+  --primary: #10B981;
+  --primary-foreground: #ffffff;
+  --secondary: #F1F5F3;
+  --secondary-foreground: #374151;
+  --muted: #F1F5F3;
+  --muted-foreground: #6B7280;
+  --accent: #D1EDE4;
+  --accent-foreground: #111827;
+  --border: #E5EBE8;
+  --input: #E5EBE8;
+  --input-background: #FFFFFF;
+  --ring: #10B981;
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+}
+
 /* Propagate store theme to <body> so portals (Sheet, Drawer) inherit it */
 body:has(.store-theme) {
   --background: #F5FAF8;

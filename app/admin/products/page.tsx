@@ -226,7 +226,7 @@ export default function ProductsPage() {
             placeholder="Пошук товарів..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none"
+            className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -239,7 +239,7 @@ export default function ProductsPage() {
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Package className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <Package className="mb-4 h-12 w-12 text-primary/30" />
             <h3 className="mb-1 text-lg font-medium text-foreground">
               {searchQuery ? "Товарів не знайдено" : "Товари ще не створені"}
             </h3>

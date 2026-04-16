@@ -69,9 +69,9 @@ export default function AdminPage() {
   }, [])
 
   return (
-    <div className="p-8">
+    <div className="p-6 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-foreground">Огляд</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Огляд</h1>
         <p className="text-muted-foreground">Загальна статистика вашого каталогу</p>
       </div>
 
@@ -82,10 +82,10 @@ export default function AdminPage() {
             <a
               key={card.title}
               href={card.href}
-              className="group rounded-xl border border-border bg-card p-6 transition-all hover:border-primary hover:shadow-md"
+              className="group rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/40 hover:shadow-lg"
             >
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-                <card.icon className="h-5 w-5 text-primary" />
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent">
+                <card.icon className="h-6 w-6 text-primary" />
               </div>
               <p className="text-3xl font-semibold text-foreground">
                 {value === null ? (

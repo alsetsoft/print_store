@@ -50,15 +50,15 @@ export default function PrintsPage() {
   }, [fetchData])
 
   return (
-    <div className="p-8">
+    <div className="p-6 lg:p-8">
       <PrintsHeader
         totalCount={prints?.length ?? 0}
         categories={categories}
         onSuccess={fetchData}
       />
 
-      <div className="mt-6 rounded-xl border border-border bg-card">
-        <div className="border-b border-border bg-accent/50 px-6 py-4">
+      <div className="mt-6 rounded-2xl border border-border bg-card">
+        <div className="border-b border-border bg-accent/30 px-6 py-4 rounded-t-2xl">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent text-xs">i</span>
             <span suppressHydrationWarning>

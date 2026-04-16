@@ -57,7 +57,7 @@ export function PrintsTable({ prints, categories, onSuccess }: PrintsTableProps)
             placeholder="Пошук принтів..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background py-2.5 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-xl border border-input bg-background py-2.5 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
@@ -71,7 +71,7 @@ export function PrintsTable({ prints, categories, onSuccess }: PrintsTableProps)
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-t border-border text-left text-sm text-muted-foreground">
+            <tr className="border-t border-border bg-muted/50 text-left text-sm text-muted-foreground">
               <th className="px-6 py-3 font-medium">Прев&apos;ю</th>
               <th className="px-6 py-3 font-medium">Назва</th>
               <th className="px-6 py-3 font-medium">Категорія</th>
@@ -94,7 +94,7 @@ export function PrintsTable({ prints, categories, onSuccess }: PrintsTableProps)
               </tr>
             ) : (
               filteredPrints.map((print) => (
-                <tr key={print.id} className="hover:bg-muted/50">
+                <tr key={print.id} className="hover:bg-accent/20 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-muted">
                       {print.image_url ? (
