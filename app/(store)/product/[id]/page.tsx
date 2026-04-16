@@ -214,7 +214,7 @@ export default async function ProductDetailPage({
         product={{
           id: product.id as number,
           name: product.name as string,
-          description: (product.description as string | null) ?? base?.description ?? null,
+          description: (product.description as string | null) ?? null,
           price: product.price as number | null,
         }}
         baseName={base?.name ?? ""}

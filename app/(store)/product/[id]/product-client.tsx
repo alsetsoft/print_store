@@ -112,10 +112,6 @@ export function ProductDetailClient({
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed">{product.description}</p>
           )}
 
-          {printDescription && (
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{printDescription}</p>
-          )}
-
           {/* Color selector */}
           {colorOptions.length > 1 && (
             <div className="mt-6">
