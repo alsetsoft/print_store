@@ -41,7 +41,7 @@ export default async function ProductDetailPage({
     .select(
       `id, name, price, base_id, print_id, is_active,
        bases:base_id(id, name, description, price),
-       print_designs:print_id(id, name, image_url)`
+       print_designs:print_id(id, name, description, image_url)`
     )
     .eq("id", productId)
     .single()
@@ -201,7 +201,7 @@ export default async function ProductDetailPage({
     })
   }
 
-  const printDesign = product.print_designs as unknown as { id: number; name: string; image_url: string | null } | null
+  const printDesign = product.print_designs as unknown as { id: number; name: string; description: string | null; image_url: string | null } | null
   const base = product.bases as unknown as { id: number; name: string; description: string | null; price: number | null } | null
 
   return (
@@ -219,6 +219,7 @@ export default async function ProductDetailPage({
         }}
         baseName={base?.name ?? ""}
         printImageUrl={printDesign?.image_url ?? null}
+        printDescription={printDesign?.description ?? null}
         colorOptions={colorOptions}
         sizes={sizes}
         placements={placements}

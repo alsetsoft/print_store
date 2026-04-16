@@ -35,6 +35,7 @@ interface ProductDetailClientProps {
   }
   baseName: string
   printImageUrl: string | null
+  printDescription: string | null
   colorOptions: ColorOption[]
   sizes: SizeOption[]
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
@@ -45,6 +46,7 @@ export function ProductDetailClient({
   product,
   baseName,
   printImageUrl,
+  printDescription,
   colorOptions,
   sizes,
   placements,
@@ -108,6 +110,10 @@ export function ProductDetailClient({
 
           {product.description && (
             <p className="mt-4 text-sm text-muted-foreground leading-relaxed">{product.description}</p>
+          )}
+
+          {printDescription && (
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{printDescription}</p>
           )}
 
           {/* Color selector */}

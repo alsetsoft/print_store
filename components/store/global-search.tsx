@@ -335,6 +335,20 @@ export function GlobalSearch() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      if (open && activeIndex >= 0 && results.length > 0) {
+        e.preventDefault()
+        navigate(results[activeIndex])
+      } else if (query.length >= 2) {
+        e.preventDefault()
+        setOpen(false)
+        setQuery("")
+        setResults([])
+        router.push(`/catalog?q=${encodeURIComponent(query)}`)
+      }
+      return
+    }
+
     if (!open || results.length === 0) return
 
     if (e.key === "ArrowDown") {
@@ -343,9 +357,6 @@ export function GlobalSearch() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
       setActiveIndex((i) => (i > 0 ? i - 1 : results.length - 1))
-    } else if (e.key === "Enter" && activeIndex >= 0) {
-      e.preventDefault()
-      navigate(results[activeIndex])
     } else if (e.key === "Escape") {
       setOpen(false)
     }

@@ -1851,7 +1851,7 @@ function CanvasElementView({
         width: `${element.scale}%`,
         height: element.type === "text" ? "auto" : undefined,
         aspectRatio: element.type === "text" ? undefined : `${aspect}`,
-        transform: `translate(-50%, -50%)${element.flipped ? " scaleX(-1)" : ""}`,
+        transform: "translate(-50%, -50%)",
         willChange: isDragging ? "left, top" : "auto",
         zIndex: isSelected ? 20 : 10,
       }}
@@ -1863,6 +1863,7 @@ function CanvasElementView({
           src={element.imageUrl}
           alt=""
           className="pointer-events-none h-full w-full object-contain drop-shadow-md"
+          style={element.flipped ? { transform: "scaleX(-1)" } : undefined}
           draggable={false}
           onLoad={(e) => {
             const img = e.currentTarget
@@ -1884,6 +1885,7 @@ function CanvasElementView({
             textAlign: element.textAlign ?? "center",
             fontSize: "clamp(8px, 2.5vw, 24px)",
             fontWeight: 700,
+            transform: element.flipped ? "scaleX(-1)" : undefined,
           }}
         >
           {element.text}
@@ -1900,12 +1902,14 @@ function CanvasElementView({
             <Minimize2 className="h-3 w-3 text-foreground" />
           </div>
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onDelete() }}
             className="absolute -right-4 -top-4 flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
           >
             <X className="h-4 w-4 text-foreground" />
           </button>
           <button
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onFlip() }}
             className="absolute -bottom-4 -left-4 sm:-bottom-3 sm:-left-3 flex h-8 w-8 sm:h-6 sm:w-6 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110 z-30"
           >
