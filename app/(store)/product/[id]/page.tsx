@@ -39,7 +39,7 @@ export default async function ProductDetailPage({
   const { data: product } = await supabase
     .from("products")
     .select(
-      `id, name, price, base_id, print_id, is_active,
+      `id, name, description, price, base_id, print_id, is_active,
        bases:base_id(id, name, description, price),
        print_designs:print_id(id, name, description, image_url)`
     )
@@ -214,7 +214,7 @@ export default async function ProductDetailPage({
         product={{
           id: product.id as number,
           name: product.name as string,
-          description: base?.description ?? null,
+          description: (product.description as string | null) ?? base?.description ?? null,
           price: product.price as number | null,
         }}
         baseName={base?.name ?? ""}

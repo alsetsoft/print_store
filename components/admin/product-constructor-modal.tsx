@@ -32,12 +32,13 @@ interface ProductConstructorModalProps {
   print: CompositePrint
   productId: string
   productName?: string
+  productDescription?: string | null
   initialConfig?: PrintConfig | null
   onClose: () => void
   onSaved: (productId: string, config: PrintConfig) => void
 }
 
-export function ProductConstructorModal({ base, print, productId, productName: initialProductName, initialConfig, onClose, onSaved }: ProductConstructorModalProps) {
+export function ProductConstructorModal({ base, print, productId, productName: initialProductName, productDescription: initialProductDescription, initialConfig, onClose, onSaved }: ProductConstructorModalProps) {
   const images = base.images
 
   const [imgIndex, setImgIndex] = useState(initialConfig?.imageIndex ?? 0)
@@ -57,6 +58,7 @@ export function ProductConstructorModal({ base, print, productId, productName: i
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [productName, setProductName] = useState(initialProductName ?? "")
+  const [productDescription, setProductDescription] = useState(initialProductDescription ?? "")
 
   // Use ref for placements - NO useState to avoid re-render loops
   const placementsRef = useRef<Record<string, PrintPlacement>>({})
@@ -283,7 +285,10 @@ export function ProductConstructorModal({ base, print, productId, productName: i
       }
       
       if (productName.trim()) {
-        await supabase.from("products").update({ name: productName.trim() }).eq("id", parseInt(productId))
+        await supabase.from("products").update({
+          name: productName.trim(),
+          description: productDescription.trim() || null,
+        }).eq("id", parseInt(productId))
       }
       onSaved(productId, config)
       setSaved(true)
@@ -308,6 +313,13 @@ export function ProductConstructorModal({ base, print, productId, productName: i
               onChange={(e) => setProductName(e.target.value)}
               placeholder={`${base.name} + ${print.name}`}
               className="w-full bg-transparent text-base font-semibold text-foreground outline-none border-b border-transparent focus:border-primary transition-colors placeholder:text-muted-foreground/50"
+            />
+            <textarea
+              value={productDescription}
+              onChange={(e) => setProductDescription(e.target.value)}
+              placeholder={"\u041E\u043F\u0438\u0441 \u0442\u043E\u0432\u0430\u0440\u0443..."}
+              rows={1}
+              className="mt-1 w-full resize-none bg-transparent text-xs text-muted-foreground outline-none border-b border-transparent focus:border-primary transition-colors placeholder:text-muted-foreground/50"
             />
             <p className="mt-0.5 text-xs text-muted-foreground">{base.name} + {print.name}</p>
           </div>

@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 import { decodeLabel } from "@/app/admin/parameters/actions"
 import { cn } from "@/lib/utils"
+import { generateProductTexts, type ProductInput } from "@/app/admin/products/actions"
 import {
   CompositeCard,
   type CompositeBase,
@@ -20,6 +21,7 @@ import {
 // ─── Local types (Base / Print extend shared types) ──────────────────────────
 
 interface Base extends CompositeBase {
+  description: string | null
   sku: string | null
   price: number | null
   image_url: string | null
@@ -28,6 +30,7 @@ interface Base extends CompositeBase {
 }
 
 interface Print extends CompositePrint {
+  description: string | null
   print_categories: { name: string } | null
 }
 
@@ -564,11 +567,11 @@ export default function GeneratePage() {
     const [{ data: basesData }, { data: printsData }] = await Promise.all([
       supabase
         .from("bases")
-        .select(`id, name, sku, price, image_url, base_categories:base_category_id(name), base_colors(color_id, colors:color_id(id, name, hex_code)), base_images(id, url, color_id, sort_order)`)
+        .select(`id, name, description, sku, price, image_url, base_categories:base_category_id(name), base_colors(color_id, colors:color_id(id, name, hex_code)), base_images(id, url, color_id, sort_order)`)
         .order("name"),
       supabase
         .from("print_designs")
-        .select("id, name, image_url, price, print_categories:print_category_id(name)")
+        .select("id, name, description, image_url, price, print_categories:print_category_id(name)")
         .order("name"),
     ])
 
@@ -613,6 +616,7 @@ export default function GeneratePage() {
         return {
           id: String(b.id),
           name: b.name,
+          description: (b as Record<string, unknown>).description as string | null ?? null,
           sku: b.sku,
           price: b.price as number | null,
           image_url: b.image_url,
@@ -628,6 +632,7 @@ export default function GeneratePage() {
       (printsData || []).map((p) => ({
         id: String(p.id),
         name: p.name,
+        description: (p as Record<string, unknown>).description as string | null ?? null,
         image_url: p.image_url,
         price: p.price as number | null,
         print_categories: p.print_categories as unknown as { name: string } | null,
@@ -706,10 +711,20 @@ export default function GeneratePage() {
     setSaving(true)
     setSavedCount(null)
     try {
+      // Generate AI names and descriptions for all combinations
+      const aiInputs: ProductInput[] = activeCombinations.map(({ base, print }) => ({
+        baseName: base.name,
+        baseDescription: base.description,
+        printName: print.name,
+        printDescription: print.description,
+      }))
+      const generatedTexts = await generateProductTexts(aiInputs)
+
       const supabase = createClient()
       let savedTotal = 0
 
-      for (const { base, print, colorId } of activeCombinations) {
+      for (let comboIdx = 0; comboIdx < activeCombinations.length; comboIdx++) {
+        const { base, print, colorId } = activeCombinations[comboIdx]
         const rawEntries = zoneSelections[base.id] || []
         const colors = colorSelections[base.id] || []
         const primaryColorId = colors[0] ?? null
@@ -744,15 +759,20 @@ export default function GeneratePage() {
 
         // Product name with color
         const colorName = colorId != null ? base.colors.find((c) => c.id === colorId)?.name : null
-        const productName = colors.length > 1 && colorName
+        const aiText = generatedTexts[comboIdx]
+        const fallbackName = colors.length > 1 && colorName
           ? `${base.name} + ${print.name} (${colorName})`
           : `${base.name} + ${print.name}`
+        const productName = aiText?.name
+          ? (colors.length > 1 && colorName ? `${aiText.name} (${colorName})` : aiText.name)
+          : fallbackName
 
         // Insert product and get back the id
         const { data: inserted, error: insertErr } = await supabase
           .from("products")
           .insert({
             name: productName,
+            description: aiText?.description || null,
             base_id: parseInt(base.id),
             print_id: parseInt(print.id),
             base_image_id: primaryImageId,

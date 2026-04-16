@@ -13,6 +13,7 @@ import { decodeLabel } from "@/app/admin/parameters/actions"
 interface RawProduct {
   id: string
   name: string
+  description: string | null
   price: number
   is_active: boolean
   created_at: string
@@ -34,6 +35,7 @@ interface PrintPlacement {
 interface ProductWithImages {
   id: string
   name: string
+  description: string | null
   price: number
   is_active: boolean
   created_at: string
@@ -48,6 +50,7 @@ interface ProductWithImages {
 interface BaseForForm {
   id: string
   name: string
+  description: string | null
   image_url: string | null
   price: number
 }
@@ -55,6 +58,7 @@ interface BaseForForm {
 interface PrintForForm {
   id: string
   name: string
+  description: string | null
   image_url: string | null
 }
 
@@ -76,8 +80,8 @@ export default function ProductsPage() {
         .from("products")
         .select(`*, bases:base_id (id, name, image_url), print_designs:print_id (id, name, image_url)`)
         .order("created_at", { ascending: false }),
-      supabase.from("bases").select("id, name, image_url, price").order("name"),
-      supabase.from("print_designs").select("id, name, image_url, price").order("name"),
+      supabase.from("bases").select("id, name, description, image_url, price").order("name"),
+      supabase.from("print_designs").select("id, name, description, image_url, price").order("name"),
     ])
 
     const enriched: ProductWithImages[] = await Promise.all(
@@ -307,6 +311,7 @@ export default function ProductsPage() {
           print={constructorProduct.print}
           productId={constructorProduct.id}
           productName={constructorProduct.name}
+          productDescription={constructorProduct.description}
           initialConfig={constructorProduct.print_config}
           onClose={() => {
             setConstructorProduct(null)

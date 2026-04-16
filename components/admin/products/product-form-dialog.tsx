@@ -3,10 +3,12 @@
 import { useState } from "react"
 import { X, Loader2, Check, ImageIcon, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { generateProductTexts } from "@/app/admin/products/actions"
 
 interface Base {
   id: string
   name: string
+  description: string | null
   image_url: string | null
   price: number
 }
@@ -14,6 +16,7 @@ interface Base {
 interface Print {
   id: string
   name: string
+  description: string | null
   image_url: string | null
   price: number | null
 }
@@ -71,12 +74,24 @@ export function ProductFormDialog({
 
     setIsLoading(true)
     try {
-      // Create a product for each selected base
-      const productsToCreate = selectedBaseIds.map((baseId) => {
+      const print = prints.find((p) => p.id === selectedPrintId)
+      const inputs = selectedBaseIds.map((baseId) => {
         const base = bases.find((b) => b.id === baseId)
-        const print = prints.find((p) => p.id === selectedPrintId)
         return {
-          name: `${base?.name || "Base"} - ${print?.name || "Print"}`,
+          baseName: base?.name || "Base",
+          baseDescription: base?.description ?? null,
+          printName: print?.name || "Print",
+          printDescription: print?.description ?? null,
+        }
+      })
+
+      const generatedTexts = await generateProductTexts(inputs)
+
+      const productsToCreate = selectedBaseIds.map((baseId, index) => {
+        const base = bases.find((b) => b.id === baseId)
+        return {
+          name: generatedTexts[index]?.name || `${base?.name || "Base"} - ${print?.name || "Print"}`,
+          description: generatedTexts[index]?.description || null,
           base_id: parseInt(baseId),
           print_id: parseInt(selectedPrintId),
           price: (Number(base?.price) || 0) + (Number(print?.price) || 0),
@@ -517,7 +532,7 @@ export function ProductFormDialog({
               className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Створити {selectedBaseIds.length} товар
+              {isLoading ? "AI генерує назви..." : `Створити ${selectedBaseIds.length} товар`}
               {selectedBaseIds.length > 1 ? "ів" : ""}
             </button>
           )}
