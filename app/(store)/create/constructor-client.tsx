@@ -1221,9 +1221,67 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       <div className={cn("order-1 flex flex-1 flex-col items-center justify-center gap-4 bg-muted/20 p-3 sm:p-4 lg:order-1 lg:gap-6 lg:p-6", isMobile && "pb-20")}>
         {currentImage ? (
           <>
+          <div className="flex w-full flex-col items-center justify-center gap-4 lg:flex-row lg:items-center lg:gap-6">
+            {/* Side/view thumbnails — circular, left of canvas on desktop, below on mobile */}
+            {currentImages.length > 1 && (
+              <div className="order-2 flex flex-row flex-wrap justify-center gap-4 lg:order-1 lg:flex-col lg:flex-nowrap lg:justify-start lg:self-center">
+                {currentImages.map((img, idx) => {
+                  const hasElements = elements.some((el) =>
+                    img.zones.some((z) => z.id === el.zoneId)
+                  )
+                  const isActive = safeImgIndex === idx
+                  const maxZonePrice = img.zones.reduce(
+                    (max, z) => ((z.price ?? 0) > max ? (z.price ?? 0) : max),
+                    0
+                  )
+                  return (
+                    <button
+                      key={img.id}
+                      onClick={() => handleImageChange(idx)}
+                      className="group relative flex flex-col items-center gap-1.5 transition-transform focus-visible:outline-none"
+                      aria-label={img.label || `${idx + 1}`}
+                    >
+                      <div
+                        className={cn(
+                          "relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 bg-background transition-all lg:h-24 lg:w-24",
+                          isActive
+                            ? "border-primary shadow-md ring-2 ring-primary/25"
+                            : "border-border hover:border-primary/40 hover:shadow-sm"
+                        )}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.label}
+                          className="h-full w-full object-contain p-1.5"
+                        />
+                        {hasElements && (
+                          <div className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-primary shadow-sm">
+                            <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
+                          </div>
+                        )}
+                        {maxZonePrice > 0 && (
+                          <span className="absolute -right-1 top-1/2 -translate-y-1/2 rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground shadow-md">
+                            +{maxZonePrice} {"\u0433\u0440\u043d"}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={cn(
+                          "max-w-[96px] text-center text-xs font-medium leading-tight",
+                          isActive ? "text-primary" : "text-foreground"
+                        )}
+                      >
+                        {img.label || `${idx + 1}`}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
             <div
               ref={canvasRef}
-              className="relative w-full select-none constructor-canvas"
+              className="order-1 relative w-full select-none constructor-canvas lg:order-2"
               style={{ maxWidth: 760, aspectRatio: "1 / 1", touchAction: "none" }}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
@@ -1323,56 +1381,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                 )
               })}
             </div>
-
-            {/* Side/view thumbnails */}
-            {currentImages.length > 1 && (
-              <div className="flex justify-center gap-3">
-                {currentImages.map((img, idx) => {
-                  const hasElements = elements.some((el) =>
-                    img.zones.some((z) => z.id === el.zoneId)
-                  )
-                  const isActive = safeImgIndex === idx
-                  return (
-                    <button
-                      key={img.id}
-                      onClick={() => handleImageChange(idx)}
-                      className={cn(
-                        "relative flex flex-col items-center gap-1.5 transition-all",
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "relative h-20 w-20 overflow-hidden rounded-xl border-2 transition-all",
-                          isActive
-                            ? "border-primary ring-2 ring-primary/30 shadow-md scale-105"
-                            : "border-border hover:border-primary/40 hover:shadow-sm"
-                        )}
-                      >
-                        <img
-                          src={img.url}
-                          alt={img.label}
-                          className="h-full w-full object-cover"
-                        />
-                        {isActive && (
-                          <div className="absolute inset-0 bg-primary/5" />
-                        )}
-                        {hasElements && (
-                          <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 shadow-sm">
-                            <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                          </div>
-                        )}
-                      </div>
-                      <span className={cn(
-                        "text-xs font-medium",
-                        isActive ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {img.label || `${idx + 1}`}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+          </div>
 
             {/* Color selector (filters images by color) */}
             {currentColors.length > 0 && (
