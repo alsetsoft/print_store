@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 // ---------------------------------------------------------------------------
@@ -702,6 +706,127 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   // Render helpers
   // -------------------------------------------------------------------------
 
+  const handleAddToCart = async () => {
+    // Generate preview — fetch images as blobs to avoid CORS taint
+    let previewDataUrl: string | null = null
+    if (imageRef.current && imageRect) {
+      try {
+        const S = 400
+        const tempCanvas = document.createElement("canvas")
+        tempCanvas.width = S
+        tempCanvas.height = S
+        const tempCtx = tempCanvas.getContext("2d")
+        if (tempCtx) {
+          const loadImage = (url: string): Promise<HTMLImageElement> =>
+            fetch(url)
+              .then((r) => r.blob())
+              .then((blob) => {
+                const objUrl = URL.createObjectURL(blob)
+                return new Promise<HTMLImageElement>((resolve, reject) => {
+                  const img = new Image()
+                  img.onload = () => { URL.revokeObjectURL(objUrl); resolve(img) }
+                  img.onerror = () => { URL.revokeObjectURL(objUrl); reject() }
+                  img.src = objUrl
+                })
+              })
+
+          const baseImg = await loadImage(imageRef.current.src)
+          const ratio = baseImg.naturalWidth / baseImg.naturalHeight
+          let rw: number, rh: number
+          if (ratio > 1) { rw = S; rh = S / ratio }
+          else { rh = S; rw = S * ratio }
+          const ox = (S - rw) / 2
+          const oy = (S - rh) / 2
+          tempCtx.drawImage(baseImg, ox, oy, rw, rh)
+
+          for (const el of elements) {
+            const zone = allImages.flatMap((i) => i.zones).find((z) => z.id === el.zoneId)
+            if (!zone) continue
+
+            const zx = ox + (zone.x / 100) * rw
+            const zy = oy + (zone.y / 100) * rh
+            const zw = (zone.width / 100) * rw
+            const zh = (zone.height / 100) * rh
+
+            if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
+              try {
+                const elImg = await loadImage(el.imageUrl)
+                const elRatio = elImg.naturalWidth / elImg.naturalHeight
+                const pw = (el.scale / 100) * zw
+                const ph = pw / elRatio
+                const cx = zx + (el.position.x / 100) * zw
+                const cy = zy + (el.position.y / 100) * zh
+
+                tempCtx.save()
+                if (el.flipped) {
+                  tempCtx.translate(cx, cy)
+                  tempCtx.scale(-1, 1)
+                  tempCtx.drawImage(elImg, -pw / 2, -ph / 2, pw, ph)
+                } else {
+                  tempCtx.drawImage(elImg, cx - pw / 2, cy - ph / 2, pw, ph)
+                }
+                tempCtx.restore()
+              } catch {
+                // skip element if load fails
+              }
+            } else if (el.type === "text" && el.text) {
+              const fontSize = Math.max(8, (el.scale / 100) * zw * 0.3)
+              tempCtx.save()
+              tempCtx.font = `700 ${fontSize}px ${el.fontFamily ?? "sans-serif"}`
+              tempCtx.fillStyle = el.textColor ?? "#000"
+              tempCtx.textAlign = (el.textAlign as CanvasTextAlign) ?? "center"
+              tempCtx.textBaseline = "middle"
+              const tx = zx + (el.position.x / 100) * zw
+              const ty = zy + (el.position.y / 100) * zh
+              tempCtx.fillText(el.text, tx, ty)
+              tempCtx.restore()
+            }
+          }
+
+          previewDataUrl = tempCanvas.toDataURL("image/jpeg", 0.7)
+        }
+      } catch (e) {
+        console.error("Preview generation failed:", e)
+      }
+    }
+
+    const selectedColor = currentColors.find((c) => c.id === selectedColorId)
+    const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
+
+    const constructorState = {
+      baseId: currentBase.id,
+      colorId: selectedColorId,
+      sizeId: selectedSizeId,
+      imgIndex: safeImgIndex,
+      elements: elements,
+    }
+
+    if (editCartItemId && editCartItemType) {
+      updateItem(editCartItemId, editCartItemType, {
+        name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+        price: totalPrice,
+        imageUrl: currentImage?.url ?? null,
+        colorName: selectedColor?.name ?? undefined,
+        sizeName: selectedSize?.name ?? undefined,
+        previewDataUrl: previewDataUrl ?? undefined,
+        constructorState,
+      })
+    } else {
+      addItem({
+        id: `custom-${Date.now()}`,
+        type: "custom",
+        name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
+        price: totalPrice,
+        imageUrl: currentImage?.url ?? null,
+        colorName: selectedColor?.name ?? undefined,
+        sizeName: selectedSize?.name ?? undefined,
+        previewDataUrl: previewDataUrl ?? undefined,
+        constructorState,
+      })
+    }
+    router.push("/cart")
+  }
+
   const elementsInCurrentImage = elements.filter((el) =>
     currentImage?.zones.some((z) => z.id === el.zoneId)
   )
@@ -726,11 +851,12 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     return areaA - areaB
   })
 
-  // Shared sidebar content renderers for reuse in both desktop sidebars and mobile drawers
-  const renderZonesContent = () => (
-    <>
-      <div className="flex-1 overflow-y-auto p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+  // Shared zone picker — rendered in right panel (desktop) and zones drawer (mobile)
+  const renderZonesContent = () => {
+    const activeZoneId = selectedZoneId ?? currentImage?.zones[0]?.id ?? null
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {"\u0417\u043e\u043d\u0430 \u0440\u043e\u0437\u043c\u0456\u0449\u0435\u043d\u043d\u044f"}
         </p>
         {currentImage?.zones.length === 0 ? (
@@ -738,35 +864,39 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
             {"\u0417\u043e\u043d\u0438 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0456"}
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <RadioGroup
+            value={activeZoneId ?? undefined}
+            onValueChange={(id) => {
+              setSelectedZoneId(id)
+              setSelectedElementId(null)
+              if (isMobile) setZonesDrawerOpen(false)
+            }}
+            className="gap-2"
+          >
             {sortedZones.map((z, idx) => {
-              const active = (selectedZoneId ?? currentImage?.zones[0]?.id) === z.id
+              const active = activeZoneId === z.id
               const area = z.width * z.height
               const sizeLabel = area < 500 ? "S" : area < 1500 ? "M" : area < 3000 ? "L" : "XL"
               return (
-                <button
+                <label
                   key={z.id}
-                  onClick={() => { setSelectedZoneId(z.id); setSelectedElementId(null); if (isMobile) setZonesDrawerOpen(false) }}
+                  htmlFor={`zone-${z.id}`}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition-all",
+                    "flex cursor-pointer items-center gap-3 rounded-lg border bg-background px-3 py-2.5 transition-colors",
                     active
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border hover:border-primary/30 hover:bg-muted/50"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                      : "border-border hover:bg-muted/60"
                   )}
                 >
+                  <RadioGroupItem id={`zone-${z.id}`} value={z.id} className="shrink-0" />
                   <div className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors",
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold",
+                    active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}>
                     {sizeLabel}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className={cn(
-                      "truncate text-sm font-medium",
-                      active ? "text-primary" : "text-foreground"
-                    )}>
+                    <p className="truncate text-sm font-medium text-foreground">
                       {z.name || `\u0417\u043e\u043d\u0430 ${idx + 1}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -774,88 +904,83 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                     </p>
                   </div>
                   {z.price != null && z.price > 0 && (
-                    <span className="shrink-0 text-sm font-semibold text-foreground">
+                    <span className="shrink-0 text-sm font-semibold text-primary">
                       +{z.price} {"\u0433\u0440\u043d"}
                     </span>
                   )}
-                </button>
+                </label>
               )
             })}
+          </RadioGroup>
+        )}
+
+        {elements.length > 0 && (
+          <div className="mt-1 rounded-lg border border-border bg-background p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Layers className="h-3.5 w-3.5" />
+              {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
+            </p>
+            <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
+              {elements.map((el) => (
+                <div
+                  key={el.id}
+                  onClick={() => setSelectedElementId(el.id)}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                    selectedElementId === el.id
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <span className="truncate">
+                    {el.type === "image" ? "\u041c\u0430\u043b\u044e\u043d\u043e\u043a"
+                      : el.type === "print" ? "\u041f\u0440\u0438\u043d\u0442"
+                      : el.type === "text" ? `"${el.text?.slice(0, 15)}..."`
+                      : "QR"}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteElement(el.id) }}
+                    className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                    aria-label={"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438"}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Elements list */}
-      {elements.length > 0 && (
-        <div className="border-t border-border p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <Layers className="mr-1 inline-block h-3.5 w-3.5" />
-            {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
-          </p>
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {elements.map((el) => (
-              <div
-                key={el.id}
-                onClick={() => setSelectedElementId(el.id)}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-3 py-2 text-xs cursor-pointer transition-all",
-                  selectedElementId === el.id
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border text-foreground hover:bg-muted/50"
-                )}
-              >
-                <span className="truncate">
-                  {el.type === "image" ? "\u041c\u0430\u043b\u044e\u043d\u043e\u043a"
-                    : el.type === "print" ? "\u041f\u0440\u0438\u043d\u0442"
-                    : el.type === "text" ? `"${el.text?.slice(0, 15)}..."`
-                    : "QR"}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); deleteElement(el.id) }}
-                  className="ml-2 shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  )
+    )
+  }
 
   const renderCatalogContent = () => (
-    <>
-      {/* Tab selector */}
-      <div className="border-b border-border p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0449\u043e \u0434\u043e\u0434\u0430\u0442\u0438"}
-        </p>
-        <div className="grid grid-cols-5 gap-2">
-          {TABS.map((tab) => {
-            const Icon = tab.icon
-            const active = activeTab === tab.type
-            return (
-              <button
-                key={tab.type}
-                onClick={() => setActiveTab(tab.type)}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all",
-                  active
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border text-muted-foreground hover:border-primary/30 hover:bg-muted/50"
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
+    <div className="flex flex-col gap-4">
+      {/* Segmented tab selector */}
+      <div className="grid grid-cols-5 gap-1.5 rounded-xl bg-muted p-1.5">
+        {TABS.map((tab) => {
+          const Icon = tab.icon
+          const active = activeTab === tab.type
+          return (
+            <button
+              key={tab.type}
+              onClick={() => setActiveTab(tab.type)}
+              className={cn(
+                "flex flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-medium transition-all",
+                active
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className={cn("h-4 w-4", active && "text-primary")} />
+              <span className="truncate">{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="min-h-0">
         {activeTab === "image" && (
           <ImageTab onUpload={handleImageUpload} />
         )}
@@ -888,11 +1013,11 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           <AiTab onAdd={handleAddAiImage} />
         )}
       </div>
-    </>
+    </div>
   )
 
   const renderSelectedElementControls = () => selectedElement && (
-    <div className="border-t border-border p-4">
+    <div className="rounded-lg border border-border bg-background p-3">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {"\u041d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0443"}
       </p>
@@ -977,181 +1102,109 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     </div>
   )
 
-  const renderSizeAndCart = () => (
-    <div className="mt-auto border-t border-border p-4">
-      {currentSizes.length > 0 && (
-        <div className="mb-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {"\u0420\u043e\u0437\u043c\u0456\u0440"}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {currentSizes.map((size) => (
-              <button
-                key={size.id}
-                onClick={() => setSelectedSizeId(size.id)}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
-                  selectedSizeId === size.id
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground hover:border-primary/30"
-                )}
-              >
-                {size.name}
-              </button>
-            ))}
+  const renderBaseSummary = () => (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {"\u041e\u0441\u043d\u043e\u0432\u0430"}
+      </p>
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
+        {currentImage?.url ? (
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+            <img src={currentImage.url} alt={currentBase.name} className="h-full w-full object-cover" />
           </div>
+        ) : (
+          <div className="h-12 w-12 shrink-0 rounded-md bg-muted" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{currentBase.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {typeof currentBase.price === "string" ? parseFloat(currentBase.price) : (currentBase.price ?? 0)} {"\u0433\u0440\u043d"}
+          </p>
+        </div>
+        <button
+          onClick={() => setBasePickerOpen(true)}
+          className="shrink-0 text-xs font-medium text-primary hover:underline"
+        >
+          {"\u0417\u043c\u0456\u043d\u0438\u0442\u0438"}
+        </button>
+      </div>
+    </div>
+  )
+
+  const renderSizePicker = () => {
+    if (currentSizes.length === 0) return null
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {"\u0420\u043e\u0437\u043c\u0456\u0440"}
+        </p>
+        <ToggleGroup
+          type="single"
+          value={selectedSizeId ?? ""}
+          onValueChange={(v) => { if (v) setSelectedSizeId(v) }}
+          variant="outline"
+          className="w-full"
+        >
+          {currentSizes.map((size) => (
+            <ToggleGroupItem
+              key={size.id}
+              value={size.id}
+              className={cn(
+                "h-10 flex-1 text-xs font-medium",
+                selectedSizeId === size.id && "bg-primary text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+              )}
+            >
+              {size.name}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+    )
+  }
+
+  const renderPriceSummary = () => (
+    <div className="flex flex-col gap-1.5 rounded-lg bg-background p-3">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>{"\u041e\u0441\u043d\u043e\u0432\u0430"}</span>
+        <span className="text-foreground">{basePrice} {"\u0433\u0440\u043d"}</span>
+      </div>
+      {zonesPrice > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>
+            {"\u0417\u043e\u043d\u0430"}
+            {currentZone?.name ? ` (${currentZone.name})` : ""}
+          </span>
+          <span className="text-primary">+{zonesPrice} {"\u0433\u0440\u043d"}</span>
         </div>
       )}
-      {/* Price breakdown */}
-      <div className="mb-3 space-y-1">
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{"\u041e\u0441\u043d\u043e\u0432\u0430"}</span>
-          <span>{basePrice} {"\u0433\u0440\u043d"}</span>
-        </div>
-        {zonesPrice > 0 && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{"\u0417\u043e\u043d\u0438 \u0434\u0440\u0443\u043a\u0443"}</span>
-            <span>+{zonesPrice} {"\u0433\u0440\u043d"}</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between border-t border-border pt-1 text-base font-bold text-foreground">
-          <span>{"\u0420\u0430\u0437\u043e\u043c"}</span>
-          <span>{totalPrice} {"\u0433\u0440\u043d"}</span>
-        </div>
+      <Separator className="my-1" />
+      <div className="flex items-center justify-between text-base font-semibold text-foreground">
+        <span>{"\u0420\u0430\u0437\u043e\u043c"}</span>
+        <span>{totalPrice} {"\u0433\u0440\u043d"}</span>
       </div>
+    </div>
+  )
 
-      <button
-        onClick={async () => {
-          // Generate preview — fetch images as blobs to avoid CORS taint
-          let previewDataUrl: string | null = null
-          if (imageRef.current && imageRect) {
-            try {
-              const S = 400
-              const tempCanvas = document.createElement("canvas")
-              tempCanvas.width = S
-              tempCanvas.height = S
-              const tempCtx = tempCanvas.getContext("2d")
-              if (tempCtx) {
-                // Helper: fetch image as blob and create an Image from it
-                const loadImage = (url: string): Promise<HTMLImageElement> =>
-                  fetch(url)
-                    .then((r) => r.blob())
-                    .then((blob) => {
-                      const objUrl = URL.createObjectURL(blob)
-                      return new Promise<HTMLImageElement>((resolve, reject) => {
-                        const img = new Image()
-                        img.onload = () => { URL.revokeObjectURL(objUrl); resolve(img) }
-                        img.onerror = () => { URL.revokeObjectURL(objUrl); reject() }
-                        img.src = objUrl
-                      })
-                    })
+  const renderCartButton = () => (
+    <Button
+      size="lg"
+      onClick={handleAddToCart}
+      className="flex w-full items-center justify-center gap-2 text-sm font-semibold"
+    >
+      <ShoppingCart className="size-4" />
+      {editCartItemId
+        ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
+        : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
+    </Button>
+  )
 
-                // Draw base image
-                const baseImg = await loadImage(imageRef.current.src)
-                const ratio = baseImg.naturalWidth / baseImg.naturalHeight
-                let rw: number, rh: number
-                if (ratio > 1) { rw = S; rh = S / ratio }
-                else { rh = S; rw = S * ratio }
-                const ox = (S - rw) / 2
-                const oy = (S - rh) / 2
-                tempCtx.drawImage(baseImg, ox, oy, rw, rh)
-
-                // Draw design elements on top
-                for (const el of elements) {
-                  const zone = allImages.flatMap((i) => i.zones).find((z) => z.id === el.zoneId)
-                  if (!zone) continue
-
-                  const zx = ox + (zone.x / 100) * rw
-                  const zy = oy + (zone.y / 100) * rh
-                  const zw = (zone.width / 100) * rw
-                  const zh = (zone.height / 100) * rh
-
-                  if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
-                    try {
-                      const elImg = await loadImage(el.imageUrl)
-                      const elRatio = elImg.naturalWidth / elImg.naturalHeight
-                      const pw = (el.scale / 100) * zw
-                      const ph = pw / elRatio
-                      const cx = zx + (el.position.x / 100) * zw
-                      const cy = zy + (el.position.y / 100) * zh
-
-                      tempCtx.save()
-                      if (el.flipped) {
-                        tempCtx.translate(cx, cy)
-                        tempCtx.scale(-1, 1)
-                        tempCtx.drawImage(elImg, -pw / 2, -ph / 2, pw, ph)
-                      } else {
-                        tempCtx.drawImage(elImg, cx - pw / 2, cy - ph / 2, pw, ph)
-                      }
-                      tempCtx.restore()
-                    } catch {
-                      // skip this element if fetch fails
-                    }
-                  } else if (el.type === "text" && el.text) {
-                    const fontSize = Math.max(8, (el.scale / 100) * zw * 0.3)
-                    tempCtx.save()
-                    tempCtx.font = `700 ${fontSize}px ${el.fontFamily ?? "sans-serif"}`
-                    tempCtx.fillStyle = el.textColor ?? "#000"
-                    tempCtx.textAlign = (el.textAlign as CanvasTextAlign) ?? "center"
-                    tempCtx.textBaseline = "middle"
-                    const tx = zx + (el.position.x / 100) * zw
-                    const ty = zy + (el.position.y / 100) * zh
-                    tempCtx.fillText(el.text, tx, ty)
-                    tempCtx.restore()
-                  }
-                }
-
-                previewDataUrl = tempCanvas.toDataURL("image/jpeg", 0.7)
-              }
-            } catch (e) {
-              console.error("Preview generation failed:", e)
-            }
-          }
-
-          const selectedColor = currentColors.find((c) => c.id === selectedColorId)
-          const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
-
-          const constructorState = {
-            baseId: currentBase.id,
-            colorId: selectedColorId,
-            sizeId: selectedSizeId,
-            imgIndex: safeImgIndex,
-            elements: elements,
-          }
-
-          if (editCartItemId && editCartItemType) {
-            // Update existing cart item
-            updateItem(editCartItemId, editCartItemType, {
-              name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
-              price: totalPrice,
-              imageUrl: currentImage?.url ?? null,
-              colorName: selectedColor?.name ?? undefined,
-              sizeName: selectedSize?.name ?? undefined,
-              previewDataUrl: previewDataUrl ?? undefined,
-              constructorState,
-            })
-          } else {
-            addItem({
-              id: `custom-${Date.now()}`,
-              type: "custom",
-              name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
-              price: totalPrice,
-              imageUrl: currentImage?.url ?? null,
-              colorName: selectedColor?.name ?? undefined,
-              sizeName: selectedSize?.name ?? undefined,
-              previewDataUrl: previewDataUrl ?? undefined,
-              constructorState,
-            })
-          }
-          router.push("/cart")
-        }}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-      >
-        <ShoppingCart className="size-4" />
-        {editCartItemId
-          ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
-          : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
-      </button>
+  // Kept for mobile "add element" drawer — bundles base + size + price + CTA below the tabs
+  const renderSizeAndCart = () => (
+    <div className="flex flex-col gap-4 border-t border-border p-4">
+      {renderBaseSummary()}
+      {renderSizePicker()}
+      {renderPriceSummary()}
+      {renderCartButton()}
     </div>
   )
 
@@ -1159,16 +1212,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 4rem)" }}>
 
       {/* ----------------------------------------------------------------- */}
-      {/* LEFT SIDEBAR — Views + Zones (desktop only)                        */}
+      {/* LEFT — Preview (canvas + thumbs + colors)                          */}
       {/* ----------------------------------------------------------------- */}
-      <div className="hidden lg:flex shrink-0 flex-col border-r border-border bg-card lg:order-1 lg:w-72">
-        {renderZonesContent()}
-      </div>
-
-      {/* ----------------------------------------------------------------- */}
-      {/* CENTER — Canvas                                                    */}
-      {/* ----------------------------------------------------------------- */}
-      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:order-2 lg:p-8", isMobile && "pb-20")}>
+      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:order-1 lg:p-8", isMobile && "pb-20")}>
         {currentImage ? (
           <>
             <div
@@ -1376,18 +1422,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               </div>
             )}
 
-            {/* Change base button */}
-            <div className="mt-4 flex items-center justify-center gap-3">
-              <button
-                onClick={() => setBasePickerOpen(true)}
-                className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
-              >
-                <Repeat className="h-4 w-4" />
-                {"\u0417\u043c\u0456\u043d\u0438\u0442\u0438 \u043e\u0441\u043d\u043e\u0432\u0443"}
-              </button>
-              <span className="text-sm text-muted-foreground">{currentBase.name}</span>
-            </div>
-
           </>
         ) : (
           <p className="text-muted-foreground">
@@ -1397,13 +1431,25 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       </div>
 
       {/* ----------------------------------------------------------------- */}
-      {/* RIGHT PANEL — Tabs (desktop only)                                  */}
+      {/* RIGHT PANEL — Controls (desktop only)                              */}
       {/* ----------------------------------------------------------------- */}
-      <div className="hidden lg:flex order-3 w-full shrink-0 flex-col border-l border-border bg-card lg:w-96">
-        {renderCatalogContent()}
-        {renderSelectedElementControls()}
-        {renderSizeAndCart()}
-      </div>
+      <aside className="hidden lg:flex order-2 w-full shrink-0 flex-col border-l border-border bg-card lg:w-[420px] xl:w-[440px]">
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex flex-col gap-5">
+            {renderCatalogContent()}
+            {selectedElement && renderSelectedElementControls()}
+            <Separator />
+            {renderZonesContent()}
+            <Separator />
+            {renderBaseSummary()}
+            {renderSizePicker()}
+            {renderPriceSummary()}
+          </div>
+        </div>
+        <div className="sticky bottom-0 border-t border-border bg-card p-4">
+          {renderCartButton()}
+        </div>
+      </aside>
 
       {/* ----------------------------------------------------------------- */}
       {/* MOBILE — Floating bottom toolbar + Drawers                         */}
@@ -1474,7 +1520,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                 <DrawerTitle>{"\u0417\u043e\u043d\u0438 \u0442\u0430 \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0438"}</DrawerTitle>
               </DrawerHeader>
               <ScrollArea className="max-h-[60vh]">
-                {renderZonesContent()}
+                <div className="p-4">
+                  {renderZonesContent()}
+                </div>
               </ScrollArea>
             </DrawerContent>
           </Drawer>
@@ -1486,7 +1534,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                 <DrawerTitle>{"\u0414\u043e\u0434\u0430\u0442\u0438 \u0435\u043b\u0435\u043c\u0435\u043d\u0442"}</DrawerTitle>
               </DrawerHeader>
               <ScrollArea className="max-h-[60vh]">
-                {renderCatalogContent()}
+                <div className="p-4">
+                  {renderCatalogContent()}
+                </div>
                 {renderSizeAndCart()}
               </ScrollArea>
             </DrawerContent>
