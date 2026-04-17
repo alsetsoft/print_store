@@ -24,6 +24,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Badge } from "@/components/ui/badge"
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 // ---------------------------------------------------------------------------
@@ -1678,38 +1682,49 @@ function BasePickerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl h-[calc(100vh-4rem)] max-h-[820px] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent
+        className="store-theme flex h-[calc(100vh-2rem)] w-[calc(100vw-1.5rem)] max-w-[1400px] flex-col gap-0 overflow-hidden bg-background p-0 sm:h-[min(92vh,960px)] sm:w-[calc(100vw-3rem)]"
+        showCloseButton
+      >
         {/* ── Header ── */}
-        <div className="shrink-0 border-b border-border px-6 pt-6 pb-4">
+        <div className="shrink-0 border-b border-border bg-card px-6 pt-6 pb-5">
           <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl">{"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0441\u043d\u043e\u0432\u0443"}</DialogTitle>
+            <DialogTitle className="text-2xl font-semibold">
+              {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043e\u0441\u043d\u043e\u0432\u0443"}
+            </DialogTitle>
             <DialogDescription>
               {"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u044e \u0442\u0430 \u0442\u0438\u043f \u0442\u043e\u0432\u0430\u0440\u0443, \u0449\u043e\u0431 \u0437\u043d\u0430\u0439\u0442\u0438 \u043f\u043e\u0442\u0440\u0456\u0431\u043d\u0443 \u043e\u0441\u043d\u043e\u0432\u0443"}
             </DialogDescription>
           </DialogHeader>
 
           {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               type="search"
               placeholder={"\u041f\u043e\u0448\u0443\u043a \u043e\u0441\u043d\u043e\u0432\u0438 \u0437\u0430 \u043d\u0430\u0437\u0432\u043e\u044e..."}
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="h-10 w-full rounded-lg border bg-muted/50 pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
+              className="h-11 pl-10 text-sm"
             />
           </div>
 
           {/* Category pills */}
-          {!loading && categories.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+          {loading ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-20 rounded-full" />
+              ))}
+            </div>
+          ) : categories.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={() => {
                   setActiveCategoryId(null)
                   setActiveSubcategoryId(null)
                 }}
                 className={cn(
-                  "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                  "inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                   activeCategoryId === null
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1725,7 +1740,7 @@ function BasePickerModal({
                     setActiveSubcategoryId(null)
                   }}
                   className={cn(
-                    "rounded-full px-4 py-1.5 text-sm font-medium transition-all",
+                    "inline-flex items-center rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                     activeCategoryId === cat.id
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -1735,7 +1750,7 @@ function BasePickerModal({
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
 
           {/* Subcategory chips */}
           {activeCategoryId && subcatsForActive.length > 0 && (
@@ -1747,10 +1762,10 @@ function BasePickerModal({
                     setActiveSubcategoryId(activeSubcategoryId === sc.id ? null : sc.id)
                   }
                   className={cn(
-                    "rounded-lg border px-3 py-1 text-xs font-medium transition-all",
+                    "inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium transition-colors",
                     activeSubcategoryId === sc.id
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                      : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"
                   )}
                 >
                   {sc.name}
@@ -1761,41 +1776,56 @@ function BasePickerModal({
         </div>
 
         {/* ── Results area ── */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* Results count */}
-          <div className="px-6 py-3 text-xs text-muted-foreground">
-            {loadingBases
-              ? "\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."
-              : `${resultCount} ${resultCount === 1 ? "\u043e\u0441\u043d\u043e\u0432\u0430" : "\u043e\u0441\u043d\u043e\u0432"}`}
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-6 py-2.5">
+            <p className="text-xs font-medium text-muted-foreground">
+              {loadingBases ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  {"\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f..."}
+                </span>
+              ) : (
+                <>
+                  <span className="text-foreground">{"\u0417\u043d\u0430\u0439\u0434\u0435\u043d\u043e: "}</span>
+                  <Badge variant="secondary" className="ml-1 rounded-full">
+                    {resultCount}
+                  </Badge>
+                </>
+              )}
+            </p>
           </div>
 
-          <ScrollArea className="h-[calc(100%-2.5rem)]">
-            <div className="px-6 pb-6">
+          <ScrollArea className="flex-1">
+            <div className="px-6 py-5">
               {loadingBases ? (
-                /* Skeleton grid */
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="animate-pulse rounded-lg border border-border">
-                      <div className="aspect-square rounded-t-lg bg-muted" />
-                      <div className="p-3 space-y-2">
-                        <div className="h-3.5 w-3/4 rounded bg-muted" />
-                        <div className="h-3 w-1/3 rounded bg-muted" />
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+                      <Skeleton className="aspect-square w-full rounded-none" />
+                      <div className="space-y-2 p-3">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/3" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : bases.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                  <Search className="mb-3 h-10 w-10 opacity-30" />
-                  <p className="text-sm font-medium">
-                    {"\u041e\u0441\u043d\u043e\u0432\u0438 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
-                  </p>
-                  <p className="mt-1 text-xs">
-                    {"\u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0456\u043d\u0448\u0443 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u044e \u0430\u0431\u043e \u0437\u043c\u0456\u043d\u0456\u0442\u044c \u043f\u043e\u0448\u0443\u043a\u043e\u0432\u0438\u0439 \u0437\u0430\u043f\u0438\u0442"}
-                  </p>
-                </div>
+                <Empty className="border-0 py-12">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Search />
+                    </EmptyMedia>
+                    <EmptyTitle>
+                      {"\u041e\u0441\u043d\u043e\u0432\u0438 \u043d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e"}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {"\u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0456\u043d\u0448\u0443 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0456\u044e \u0430\u0431\u043e \u0437\u043c\u0456\u043d\u0456\u0442\u044c \u043f\u043e\u0448\u0443\u043a\u043e\u0432\u0438\u0439 \u0437\u0430\u043f\u0438\u0442"}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                   {bases.map((b) => {
                     const isActive = String(b.id) === currentBaseId
                     return (
@@ -1805,42 +1835,41 @@ function BasePickerModal({
                           if (!isActive) onSelectBase(b.id)
                         }}
                         className={cn(
-                          "group relative flex flex-col overflow-hidden rounded-lg border bg-card text-left transition-all",
+                          "group relative flex flex-col overflow-hidden rounded-xl border bg-card text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                           isActive
-                            ? "border-primary ring-2 ring-primary/20 shadow-md"
-                            : "border-border hover:border-primary/30 hover:shadow-md"
+                            ? "border-primary shadow-md ring-2 ring-primary/25"
+                            : "border-border hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                         )}
                       >
-                        {/* Image */}
                         <div className="relative aspect-square overflow-hidden bg-muted">
                           {b.image_url ? (
                             <img
                               src={decodeLabel(b.image_url) ?? ""}
                               alt={b.name}
-                              className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                              className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center">
-                              <ImagePlus className="size-8 text-muted-foreground/30" />
+                              <ImagePlus className="size-8 text-muted-foreground/40" />
                             </div>
                           )}
                           {isActive && (
-                            <div className="absolute top-2 right-2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-sm">
+                            <Badge className="absolute right-2 top-2 rounded-full shadow-sm">
+                              <Check className="size-3" strokeWidth={3} />
                               {"\u041e\u0431\u0440\u0430\u043d\u043e"}
-                            </div>
+                            </Badge>
                           )}
                         </div>
 
-                        {/* Info */}
-                        <div className="flex flex-1 flex-col p-3">
+                        <div className="flex flex-1 flex-col gap-1 p-3">
                           <span className={cn(
-                            "text-sm font-medium line-clamp-2 transition-colors",
+                            "line-clamp-2 text-sm font-medium transition-colors",
                             isActive ? "text-primary" : "text-card-foreground group-hover:text-primary"
                           )}>
                             {b.name}
                           </span>
                           {b.price != null && Number(b.price) > 0 && (
-                            <span className="mt-auto pt-1.5 text-sm font-bold text-foreground">
+                            <span className="mt-auto pt-1 text-sm font-semibold text-foreground">
                               {"\u0432\u0456\u0434 "}{b.price} {"\u0433\u0440\u043d"}
                             </span>
                           )}
