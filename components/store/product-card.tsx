@@ -1,32 +1,39 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { Package } from "lucide-react"
+import { ChevronLeft, ChevronRight, Package } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+type CardImage = {
+  id: number
+  url: string
+  zones: { id: string; x: number; y: number; width: number; height: number }[]
+}
 
 interface ProductCardProps {
   product: {
     id: number
     name: string
     price: number | null
-    baseImageUrl: string | null
     printImageUrl: string | null
-    zones: { id: string; x: number; y: number; width: number; height: number }[]
+    images: CardImage[]
+    initialImageIndex: number
     placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
     colorId?: number | null
   }
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const { images, printImageUrl, placements, initialImageIndex } = product
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const baseUrl = product.baseImageUrl
-  const printUrl = product.printImageUrl
-  const zones = product.zones
-  const placements = product.placements
+  const [activeIndex, setActiveIndex] = useState(Math.max(0, Math.min(initialImageIndex, images.length - 1)))
+
+  const activeImage = images[activeIndex]
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !baseUrl) return
+    if (!canvas || !activeImage) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
@@ -36,7 +43,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
     const baseImg = new Image()
     baseImg.crossOrigin = "anonymous"
-    baseImg.src = baseUrl
+    baseImg.src = activeImage.url
 
     baseImg.onload = () => {
       const scale = Math.min(SIZE / baseImg.naturalWidth, SIZE / baseImg.naturalHeight)
@@ -48,17 +55,18 @@ export function ProductCard({ product }: ProductCardProps) {
       ctx.clearRect(0, 0, SIZE, SIZE)
       ctx.drawImage(baseImg, ox, oy, w, h)
 
-      if (!printUrl || zones.length === 0) return
+      if (!printImageUrl || activeImage.zones.length === 0) return
 
-      // Render all zones that have placements, or fall back to first zone
+      // Render every zone on the active image that carries a placement; fall
+      // back to the first zone centered when no placements exist at all.
       const hasAnyPlacement = Object.keys(placements).length > 0
       const zonesToRender = hasAnyPlacement
-        ? zones.filter(z => placements[z.id])
-        : [zones[0]]
+        ? activeImage.zones.filter((z) => placements[z.id])
+        : [activeImage.zones[0]]
 
       for (const zone of zonesToRender) {
         const placement = placements[zone.id]
-        const url = placement?.printImageUrl ?? printUrl
+        const url = placement?.printImageUrl ?? printImageUrl
 
         const zx = ox + (zone.x / 100) * w
         const zy = oy + (zone.y / 100) * h
@@ -104,7 +112,23 @@ export function ProductCard({ product }: ProductCardProps) {
         }
       }
     }
-  }, [baseUrl, printUrl, zones, placements])
+  }, [activeImage, printImageUrl, placements])
+
+  const hasBase = !!activeImage
+  const hasMultiple = images.length > 1
+
+  const go = (dir: 1 | -1) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!hasMultiple) return
+    setActiveIndex((i) => (i + dir + images.length) % images.length)
+  }
+
+  const jumpTo = (i: number) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setActiveIndex(i)
+  }
 
   return (
     <Link
@@ -112,7 +136,7 @@ export function ProductCard({ product }: ProductCardProps) {
       className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-all hover:border-primary/30 hover:shadow-md"
     >
       <div className="relative aspect-square overflow-hidden bg-muted">
-        {baseUrl ? (
+        {hasBase ? (
           <canvas
             ref={canvasRef}
             className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
@@ -121,6 +145,43 @@ export function ProductCard({ product }: ProductCardProps) {
           <div className="flex h-full items-center justify-center">
             <Package className="size-10 text-muted-foreground/30" />
           </div>
+        )}
+
+        {hasMultiple && (
+          <>
+            <button
+              type="button"
+              onClick={go(-1)}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+              aria-label="Попередня"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={go(1)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+              aria-label="Наступна"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+            <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={jumpTo(i)}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    activeIndex === i
+                      ? "w-3.5 bg-primary"
+                      : "w-1.5 bg-foreground/25 hover:bg-foreground/50"
+                  )}
+                  aria-label={`Фото ${i + 1}`}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
       <div className="flex flex-1 flex-col p-3">

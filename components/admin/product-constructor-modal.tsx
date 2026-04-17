@@ -71,20 +71,17 @@ export function ProductConstructorModal({
   onClose,
   onSaved,
 }: ProductConstructorModalProps) {
-  // Filter images/zones to what the generator picked, plus the MAX zone of each
-  // included image (so admin can always reposition on the largest zone).
+  // Strict filter: only the (image, zone) pairs the generator originally picked.
   const visibleImages: BaseImage[] = useMemo(() => {
     const allowed = allowedPlacements && allowedPlacements.length > 0 ? allowedPlacements : null
     if (!allowed) return base.images
     return base.images
-      .map((img) => {
-        const inAllowed = allowed.some((p) => p.imageId === img.id)
-        if (!inAllowed) return { ...img, zones: [] as typeof img.zones }
-        const zones = img.zones.filter(
-          (z) => z.is_max || allowed.some((p) => p.imageId === img.id && p.zoneId === z.id),
-        )
-        return { ...img, zones }
-      })
+      .map((img) => ({
+        ...img,
+        zones: img.zones.filter((z) =>
+          allowed.some((p) => p.imageId === img.id && p.zoneId === z.id),
+        ),
+      }))
       .filter((img) => img.zones.length > 0)
   }, [base.images, allowedPlacements])
 
@@ -160,6 +157,7 @@ export function ProductConstructorModal({
   const canvasRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const zoneRef = useRef<HTMLDivElement>(null)
+  const printWrapperRef = useRef<HTMLDivElement>(null)
 
   const currentImage = visibleImages[imgIndex]
   const currentZone = currentImage?.zones.find((z) => z.id === selectedZoneId) ?? currentImage?.zones[0] ?? null
@@ -223,6 +221,20 @@ export function ProductConstructorModal({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
+
+  // Deselect the print (hide handles) when the user clicks anywhere outside it.
+  useEffect(() => {
+    if (!isPrintSelected) return
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (!target || !printWrapperRef.current) return
+      if (!printWrapperRef.current.contains(target)) {
+        setIsPrintSelected(false)
+      }
+    }
+    document.addEventListener("pointerdown", onDown, true)
+    return () => document.removeEventListener("pointerdown", onDown, true)
+  }, [isPrintSelected])
 
   // Recompute displayed image bounds inside the canvas container.
   const updateImageRect = useCallback(() => {
@@ -781,13 +793,6 @@ export function ProductConstructorModal({
                     }}
                     onClick={() => setIsPrintSelected(false)}
                   >
-                    {/* Zone label chip (shown only when idle). */}
-                    {!isDragging && !isResizing && !isPinching && currentZone.name && (
-                      <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
-                        {currentZone.name}
-                      </span>
-                    )}
-
                     {/* Snap guides */}
                     {isDragging && (snappedAxis.x || snappedAxis.y) && (
                       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -808,6 +813,7 @@ export function ProductConstructorModal({
 
                     {activePrintUrl && (
                       <div
+                        ref={printWrapperRef}
                         className={cn(
                           "absolute",
                           isPrintSelected ? "outline-1 outline-dashed outline-foreground/60" : "",
@@ -839,40 +845,53 @@ export function ProductConstructorModal({
                           }}
                         />
 
-                        {isPrintSelected && (
-                          <>
-                            {/* Top-left: shrink */}
-                            <div
-                              onPointerDown={onResizePointerDown("shrink")}
-                              className="absolute -left-4 -top-4 z-30 flex h-9 w-9 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
-                              style={{ touchAction: "none" }}
-                              aria-label="shrink"
-                            >
-                              <Minimize2 className="h-4 w-4 text-foreground" />
-                            </div>
-                            {/* Bottom-left: flip */}
-                            <button
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => { e.stopPropagation(); setPrintFlipped((f) => !f) }}
-                              className={cn(
-                                "absolute -bottom-4 -left-4 z-30 flex h-9 w-9 items-center justify-center rounded-full border-2 bg-card shadow-md transition-transform hover:scale-110",
-                                printFlipped ? "border-primary text-primary" : "border-border text-foreground",
-                              )}
-                              aria-label="flip"
-                            >
-                              <FlipHorizontal2 className="h-4 w-4" />
-                            </button>
-                            {/* Bottom-right: grow */}
-                            <div
-                              onPointerDown={onResizePointerDown("grow")}
-                              className="absolute -bottom-4 -right-4 z-30 flex h-9 w-9 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
-                              style={{ touchAction: "none" }}
-                              aria-label="resize"
-                            >
-                              <Maximize2 className="h-4 w-4 text-foreground" />
-                            </div>
-                          </>
-                        )}
+                        {isPrintSelected && (() => {
+                          // Handles scale with printScale so they don't overwhelm a small print.
+                          const handlePx = Math.round(20 + (printScale / 100) * 16) // 20–36px
+                          const iconPx = Math.round(handlePx * 0.45)                  // 9–16px
+                          const offsetPx = -Math.round(handlePx / 2)
+                          const common = {
+                            width: handlePx,
+                            height: handlePx,
+                            touchAction: "none" as const,
+                          }
+                          const iconStyle = { width: iconPx, height: iconPx }
+                          return (
+                            <>
+                              {/* Top-left: shrink */}
+                              <div
+                                onPointerDown={onResizePointerDown("shrink")}
+                                className="absolute z-30 flex cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
+                                style={{ ...common, left: offsetPx, top: offsetPx }}
+                                aria-label="shrink"
+                              >
+                                <Minimize2 style={iconStyle} className="text-foreground" />
+                              </div>
+                              {/* Bottom-left: flip */}
+                              <button
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => { e.stopPropagation(); setPrintFlipped((f) => !f) }}
+                                className={cn(
+                                  "absolute z-30 flex items-center justify-center rounded-full border-2 bg-card shadow-md transition-transform hover:scale-110",
+                                  printFlipped ? "border-primary text-primary" : "border-border text-foreground",
+                                )}
+                                style={{ ...common, left: offsetPx, bottom: offsetPx }}
+                                aria-label="flip"
+                              >
+                                <FlipHorizontal2 style={iconStyle} />
+                              </button>
+                              {/* Bottom-right: grow */}
+                              <div
+                                onPointerDown={onResizePointerDown("grow")}
+                                className="absolute z-30 flex cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
+                                style={{ ...common, right: offsetPx, bottom: offsetPx }}
+                                aria-label="resize"
+                              >
+                                <Maximize2 style={iconStyle} className="text-foreground" />
+                              </div>
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

@@ -137,12 +137,15 @@ export default async function ProductDetailPage({
 
   const placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}
   for (const pl of rawPlacements) {
+    // Skip orphaned placements (print_id NULL) left over from a legacy save bug;
+    // otherwise they fall back to the primary print and duplicate it visually.
+    if (pl.print_id == null) continue
     placements[String(pl.zone_id)] = {
       x: Number(pl.x),
       y: Number(pl.y),
       scale: Number(pl.scale),
       is_mirrored: pl.is_mirrored ?? false,
-      ...(pl.print_id && pl.print_id !== (product.print_id as number) && secondaryPrintUrls.has(pl.print_id)
+      ...(pl.print_id !== (product.print_id as number) && secondaryPrintUrls.has(pl.print_id)
         ? { printImageUrl: secondaryPrintUrls.get(pl.print_id)! }
         : {}),
     }

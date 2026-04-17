@@ -21,10 +21,10 @@ type Product = {
   id: number
   name: string
   price: number | null
-  baseImageUrl: string | null
   printImageUrl: string | null
-  zones: { id: string; x: number; y: number; width: number; height: number }[]
-  placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean }>
+  images: { id: number; url: string; zones: { id: string; x: number; y: number; width: number; height: number }[] }[]
+  initialImageIndex: number
+  placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
   colorId?: number | null
 }
 

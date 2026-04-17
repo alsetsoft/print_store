@@ -5,14 +5,20 @@ function decodeLabel(raw: string): string {
   return idx === -1 ? raw : raw.substring(0, idx)
 }
 
+export type EnrichedProductImage = {
+  id: number
+  url: string
+  zones: { id: string; x: number; y: number; width: number; height: number }[]
+}
+
 export type EnrichedProduct = {
   id: number
   name: string
   price: number | null
-  baseImageUrl: string | null
   printImageUrl: string | null
-  zones: { id: string; x: number; y: number; width: number; height: number }[]
   colorId: number | null
+  images: EnrichedProductImage[]
+  initialImageIndex: number
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
 }
 
@@ -107,14 +113,20 @@ export async function fetchEnrichedProducts(
     id: number; base_id: number; url: string; color_id: number | null; sort_order: number
   }>
 
-  const firstImageByBase = new Map<number, { id: number; url: string }>()
+  // Group base images by (base_id, color_id) for color-aware filtering later.
+  const imagesByBaseAndColor = new Map<string, typeof allImages>()
+  const imagesByBase = new Map<number, typeof allImages>()
   for (const img of allImages) {
-    if (!firstImageByBase.has(img.base_id)) {
-      firstImageByBase.set(img.base_id, { id: img.id, url: decodeLabel(img.url) })
-    }
+    const byBase = imagesByBase.get(img.base_id) ?? []
+    byBase.push(img)
+    imagesByBase.set(img.base_id, byBase)
+    const key = `${img.base_id}|${img.color_id ?? ""}`
+    const arr = imagesByBaseAndColor.get(key) ?? []
+    arr.push(img)
+    imagesByBaseAndColor.set(key, arr)
   }
 
-  const imageIds = [...firstImageByBase.values()].map((img) => img.id)
+  const imageIds = allImages.map((img) => img.id)
   const zonesRes = imageIds.length > 0
     ? await supabase
         .from("image_zones")
@@ -173,33 +185,55 @@ export async function fetchEnrichedProducts(
   }
 
   const enrichedProducts: EnrichedProduct[] = products.map((p) => {
-    const firstImg = firstImageByBase.get(p.base_id)
-    const zones = firstImg ? (zonesByImage.get(firstImg.id) ?? []) : []
+    // Pick the product's color from its primary base_image_id.
+    const primaryImg = p.base_image_id != null
+      ? allImages.find((i) => i.id === p.base_image_id) ?? null
+      : null
+    const colorId = primaryImg?.color_id ?? null
 
-    return {
-      id: p.id,
-      name: p.name,
-      price: p.price,
-      baseImageUrl: firstImg?.url ?? null,
-      printImageUrl: p.print_designs?.image_url ?? null,
-      zones: zones.map((z) => ({
+    // Images for the card carousel: same color (or all if no color).
+    const colorKey = `${p.base_id}|${colorId ?? ""}`
+    const scopedImages = imagesByBaseAndColor.get(colorKey)
+      ?? imagesByBase.get(p.base_id)
+      ?? []
+
+    const images: EnrichedProductImage[] = scopedImages.map((img) => ({
+      id: img.id,
+      url: decodeLabel(img.url),
+      zones: (zonesByImage.get(img.id) ?? []).map((z) => ({
         id: String(z.id),
         x: Number(z.x),
         y: Number(z.y),
         width: Number(z.width),
         height: Number(z.height),
       })),
-      colorId: (() => {
-        const img = allImages.find(i => i.id === p.base_image_id)
-        return img?.color_id ?? null
-      })(),
+    }))
+
+    const initialImageIndex = (() => {
+      if (p.base_image_id == null) return 0
+      const idx = images.findIndex((i) => i.id === p.base_image_id)
+      return idx >= 0 ? idx : 0
+    })()
+
+    return {
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      printImageUrl: p.print_designs?.image_url ?? null,
+      colorId,
+      images,
+      initialImageIndex,
       placements: (() => {
         const raw = placementsByProduct.get(p.id) ?? {}
         const resolved: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}
         for (const [zoneId, pl] of Object.entries(raw)) {
+          // Skip orphaned placements whose print_id is NULL and can't be resolved —
+          // these come from legacy saves that wiped the field and would otherwise
+          // duplicate the primary print visually.
+          if (pl.print_id == null) continue
           resolved[zoneId] = {
             x: pl.x, y: pl.y, scale: pl.scale, is_mirrored: pl.is_mirrored,
-            ...(pl.print_id && pl.print_id !== p.print_id && secondaryPrintUrls.has(pl.print_id)
+            ...(pl.print_id !== p.print_id && secondaryPrintUrls.has(pl.print_id)
               ? { printImageUrl: secondaryPrintUrls.get(pl.print_id)! }
               : {}),
           }
