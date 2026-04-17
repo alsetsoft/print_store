@@ -64,6 +64,7 @@ interface PrintForForm {
   name: string
   description: string | null
   image_url: string | null
+  price: number | null
 }
 
 export default function ProductsPage() {

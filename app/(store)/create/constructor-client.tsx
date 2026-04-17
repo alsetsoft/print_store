@@ -1877,7 +1877,7 @@ function CanvasElementView({
   element: CanvasElement
   isSelected: boolean
   isDragging: boolean
-  onSelect: (e: React.PointerEvent) => void
+  onSelect: (e: React.MouseEvent<HTMLDivElement>) => void
   onDragStart: (e: React.PointerEvent) => void
   onResizeStart: (dir: "shrink" | "grow", e: React.PointerEvent) => void
   onFlip: () => void
@@ -1906,7 +1906,7 @@ function CanvasElementView({
         zIndex: isSelected ? 20 : 10,
       }}
       onPointerDown={onDragStart}
-      onClick={onSelect}
+       onClick={onSelect}
     >
       {isImageLike && element.imageUrl && (
         <img
