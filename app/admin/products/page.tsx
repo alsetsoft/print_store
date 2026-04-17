@@ -309,41 +309,35 @@ export default function ProductsPage() {
                   </div>
                 )
               }
-              // Preview card mirrors the storefront: lock to the primary image
-              // (no left/right nav arrows) but render EVERY zone placement on it,
-              // each with its own print (matches components/store/product-card.tsx).
+              // Mirror storefront: all color-scoped images are navigable via
+              // arrows/dots; each view renders its own zone placements with
+              // per-zone prints. Start at the product's primary image.
               const primary = product.initialPrimary
-              const primaryImage = primary
-                ? product.base.images.find((img) => img.id === primary.imageId)
-                : null
-              const restrictedBase: CompositeBase = primaryImage
-                ? { ...product.base, images: [primaryImage] }
-                : product.base
-              const activeImageId = primaryImage?.id ?? product.base.images[0]?.id ?? null
-              const restrictedPlacements = activeImageId && primaryImage
-                ? Object.fromEntries(
-                    Object.entries(product.placements).filter(([zoneId]) =>
-                      primaryImage.zones.some((z) => z.id === zoneId)
-                    )
-                  )
-                : {}
-              const restrictedMultiZoneSelection = activeImageId
-                ? product.multiZoneSelection?.filter((e) => e.imageId === activeImageId)
-                : undefined
-              const restrictedZoneSelection = primary
+              const primaryImageIndex = primary
+                ? Math.max(0, product.base.images.findIndex((img) => img.id === primary.imageId))
+                : 0
+              const cardPrintConfig: PrintConfig = product.print_config ?? {
+                x: 50,
+                y: 50,
+                scale: 50,
+                flipped: false,
+                zoneId: primary?.zoneId ?? null,
+                imageIndex: primaryImageIndex,
+              }
+              const cardZoneSelection = primary
                 ? { [primary.imageId]: primary.zoneId }
                 : undefined
               return (
                 <CompositeCard
                   key={product.id}
-                  base={restrictedBase}
+                  base={product.base}
                   print={product.print}
                   productName={product.name}
                   isActive={product.is_active}
-                  printConfig={product.print_config}
-                  placements={restrictedPlacements}
-                  multiZoneSelection={restrictedMultiZoneSelection}
-                  zoneSelection={restrictedZoneSelection}
+                  printConfig={cardPrintConfig}
+                  placements={product.placements}
+                  multiZoneSelection={product.multiZoneSelection}
+                  zoneSelection={cardZoneSelection}
                   onClick={() => setConstructorProduct(product)}
                   onDelete={() => setDeletingId(product.id)}
                 />
