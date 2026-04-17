@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
-  X, ChevronLeft, ChevronRight,
-  ZoomIn, ZoomOut, RotateCcw, FlipHorizontal2,
-  Maximize2, Minimize2, CheckSquare, Square, Loader2, Check
+  X, ZoomIn, ZoomOut, RotateCcw, FlipHorizontal2,
+  Maximize2, Minimize2, Loader2, Check,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
-import type { CompositeBase, CompositePrint, Zone, BaseImage } from "@/components/admin/composite-card"
+import type { CompositeBase, CompositePrint, BaseImage } from "@/components/admin/composite-card"
 
 interface PrintPlacement {
   zone_id: number
@@ -34,145 +33,178 @@ interface ProductConstructorModalProps {
   productName?: string
   productDescription?: string | null
   initialConfig?: PrintConfig | null
+  allowedPlacements?: Array<{ imageId: string; zoneId: string }>
+  initialPrimary?: { imageId: string; zoneId: string } | null
   onClose: () => void
   onSaved: (productId: string, config: PrintConfig) => void
 }
 
-export function ProductConstructorModal({ base, print, productId, productName: initialProductName, productDescription: initialProductDescription, initialConfig, onClose, onSaved }: ProductConstructorModalProps) {
-  const images = base.images
+type GestureKind = "drag" | "resize" | "pinch" | null
 
-  const [imgIndex, setImgIndex] = useState(initialConfig?.imageIndex ?? 0)
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(
-    initialConfig?.zoneId ?? images[0]?.zones[0]?.id ?? null
-  )
-  const [printPosition, setPrintPosition] = useState({ x: initialConfig?.x ?? 50, y: initialConfig?.y ?? 50 })
+interface Gesture {
+  kind: Exclude<GestureKind, null>
+  pointerIds: number[]
+  // resize (matches /create): direction + starting client coords + starting scale.
+  dir?: "shrink" | "grow"
+  startClient?: { x: number; y: number }
+  startScale?: number
+  // pinch: starting two-pointer distance (px) + starting scale + starting center (zone %).
+  startPinchDist?: number
+  startPinchScale?: number
+  startPinchCenter?: { x: number; y: number }
+  startPinchMidpoint?: { x: number; y: number } // in zone %
+}
+
+const SNAP_THRESHOLD = 3 // % inside zone where print snaps to center
+
+export function ProductConstructorModal({
+  base,
+  print,
+  productId,
+  productName: initialProductName,
+  productDescription: initialProductDescription,
+  initialConfig,
+  allowedPlacements,
+  initialPrimary,
+  onClose,
+  onSaved,
+}: ProductConstructorModalProps) {
+  // Filter images/zones to what the generator picked, plus the MAX zone of each
+  // included image (so admin can always reposition on the largest zone).
+  const visibleImages: BaseImage[] = useMemo(() => {
+    const allowed = allowedPlacements && allowedPlacements.length > 0 ? allowedPlacements : null
+    if (!allowed) return base.images
+    return base.images
+      .map((img) => {
+        const inAllowed = allowed.some((p) => p.imageId === img.id)
+        if (!inAllowed) return { ...img, zones: [] as typeof img.zones }
+        const zones = img.zones.filter(
+          (z) => z.is_max || allowed.some((p) => p.imageId === img.id && p.zoneId === z.id),
+        )
+        return { ...img, zones }
+      })
+      .filter((img) => img.zones.length > 0)
+  }, [base.images, allowedPlacements])
+
+  const hasImages = visibleImages.length > 0
+
+  // Resolve initial image/zone indices.
+  const initialImgIdx = useMemo(() => {
+    if (!hasImages) return 0
+    if (
+      initialConfig?.imageIndex != null &&
+      initialConfig.imageIndex >= 0 &&
+      initialConfig.imageIndex < visibleImages.length
+    ) {
+      return initialConfig.imageIndex
+    }
+    if (initialPrimary) {
+      const i = visibleImages.findIndex((img) => img.id === initialPrimary.imageId)
+      if (i >= 0) return i
+    }
+    return 0
+  }, [hasImages, visibleImages, initialConfig?.imageIndex, initialPrimary])
+
+  const initialZoneId = useMemo(() => {
+    const img = visibleImages[initialImgIdx]
+    if (!img) return null
+    if (initialConfig?.zoneId && img.zones.some((z) => z.id === initialConfig.zoneId)) {
+      return initialConfig.zoneId
+    }
+    if (initialPrimary && img.zones.some((z) => z.id === initialPrimary.zoneId)) {
+      return initialPrimary.zoneId
+    }
+    return img.zones[0]?.id ?? null
+  }, [visibleImages, initialImgIdx, initialConfig?.zoneId, initialPrimary])
+
+  const [imgIndex, setImgIndex] = useState(initialImgIdx)
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(initialZoneId)
+  const [printPosition, setPrintPosition] = useState({
+    x: initialConfig?.x ?? 50,
+    y: initialConfig?.y ?? 50,
+  })
   const [printScale, setPrintScale] = useState(initialConfig?.scale ?? 50)
   const [printFlipped, setPrintFlipped] = useState(initialConfig?.flipped ?? false)
   const [printAspect, setPrintAspect] = useState(1)
   const [isPrintSelected, setIsPrintSelected] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
-  const [isResizing, setIsResizing] = useState<"shrink" | "grow" | null>(null)
-  const [resizeStartPos, setResizeStartPos] = useState({ x: 0, y: 0 })
-  const [resizeStartScale, setResizeStartScale] = useState(50)
-  const [imageRect, setImageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null)
+  const [isResizing, setIsResizing] = useState(false)
+  const [isPinching, setIsPinching] = useState(false)
+  const [imageRect, setImageRect] = useState<{
+    left: number; top: number; width: number; height: number
+  } | null>(null)
+  const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [productName, setProductName] = useState(initialProductName ?? "")
   const [productDescription, setProductDescription] = useState(initialProductDescription ?? "")
 
-  // Use ref for placements - NO useState to avoid re-render loops
+  // Placements cache: zoneId → placement. Ref-only to avoid re-render loops.
   const placementsRef = useRef<Record<string, PrintPlacement>>({})
-  const printStateRef = useRef({ x: printPosition.x, y: printPosition.y, scale: printScale, flipped: printFlipped })
-  const selectedZoneIdRef = useRef<string | null>(selectedZoneId)
 
-  // Keep refs in sync every render (no useEffect needed)
-  printStateRef.current = { x: printPosition.x, y: printPosition.y, scale: printScale, flipped: printFlipped }
-  selectedZoneIdRef.current = selectedZoneId
+  // Pointer + gesture tracking.
+  const pointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map())
+  const gestureRef = useRef<Gesture | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const pendingStateRef = useRef<{
+    pos?: { x: number; y: number }
+    scale?: number
+    snap?: { x: boolean; y: boolean }
+  }>({})
 
   const canvasRef = useRef<HTMLDivElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
-  const rafRef = useRef<number | null>(null)
-  const pendingPosRef = useRef<{ x: number; y: number } | null>(null)
+  const zoneRef = useRef<HTMLDivElement>(null)
 
-  const currentImage = images[imgIndex]
+  const currentImage = visibleImages[imgIndex]
   const currentZone = currentImage?.zones.find((z) => z.id === selectedZoneId) ?? currentImage?.zones[0] ?? null
 
-  // Load placements from database on mount — pure ref, no state
+  // Load placements from DB once.
   useEffect(() => {
     let mounted = true
-    async function loadPlacements() {
+    ;(async () => {
       const supabase = createClient()
       const { data } = await supabase
         .from("product_print_placements")
         .select("*")
         .eq("product_id", parseInt(productId))
-      
-      if (!mounted) return
-      
-      if (data && data.length > 0) {
-        const placementsMap: Record<string, PrintPlacement> = {}
-        data.forEach((p) => {
-          placementsMap[String(p.zone_id)] = {
-            zone_id: p.zone_id,
-            x: Number(p.x),
-            y: Number(p.y),
-            scale: Number(p.scale),
-            is_mirrored: p.is_mirrored ?? false,
-          }
-        })
-        // Store in ref only — no state update, no re-render loop
-        placementsRef.current = placementsMap
-        
-        // Apply current zone's placement
-        const currentZoneId = selectedZoneIdRef.current
-        if (currentZoneId && placementsMap[currentZoneId]) {
-          const p = placementsMap[currentZoneId]
-          setPrintPosition({ x: p.x, y: p.y })
-          setPrintScale(p.scale)
-          setPrintFlipped(p.is_mirrored)
+      if (!mounted || !data) return
+      const map: Record<string, PrintPlacement> = {}
+      for (const p of data) {
+        map[String(p.zone_id)] = {
+          zone_id: p.zone_id,
+          x: Number(p.x),
+          y: Number(p.y),
+          scale: Number(p.scale),
+          is_mirrored: p.is_mirrored ?? false,
         }
       }
-    }
-    loadPlacements()
+      placementsRef.current = map
+      if (selectedZoneId && map[selectedZoneId]) {
+        const p = map[selectedZoneId]
+        setPrintPosition({ x: p.x, y: p.y })
+        setPrintScale(p.scale)
+        setPrintFlipped(p.is_mirrored)
+      }
+    })()
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId])
 
-  // Handle image index change
-  const handleImageChange = useCallback((newIndex: number) => {
-    // Save current zone state to ref before switching
-    if (selectedZoneIdRef.current) {
-      const state = printStateRef.current
-      placementsRef.current[selectedZoneIdRef.current] = {
-        zone_id: parseInt(selectedZoneIdRef.current),
-        x: state.x, y: state.y, scale: state.scale, is_mirrored: state.flipped,
-      }
-    }
-    setImgIndex(newIndex)
-    const newFirstZone = images[newIndex]?.zones[0]
-    if (newFirstZone) {
-      setSelectedZoneId(newFirstZone.id)
-      const p = placementsRef.current[newFirstZone.id]
-      if (p) { setPrintPosition({ x: p.x, y: p.y }); setPrintScale(p.scale); setPrintFlipped(p.is_mirrored) }
-      else { setPrintPosition({ x: 50, y: 50 }); setPrintScale(50); setPrintFlipped(false) }
-    }
-  }, [images])
-
-  // Handle zone selection change
-  const handleZoneChange = useCallback((newZoneId: string) => {
-    if (selectedZoneIdRef.current && selectedZoneIdRef.current !== newZoneId) {
-      // Save current zone state to ref
-      const state = printStateRef.current
-      placementsRef.current[selectedZoneIdRef.current] = {
-        zone_id: parseInt(selectedZoneIdRef.current),
-        x: state.x, y: state.y, scale: state.scale, is_mirrored: state.flipped,
-      }
-    }
-    setSelectedZoneId(newZoneId)
-    const p = placementsRef.current[newZoneId]
-    if (p) { setPrintPosition({ x: p.x, y: p.y }); setPrintScale(p.scale); setPrintFlipped(p.is_mirrored) }
-    else { setPrintPosition({ x: 50, y: 50 }); setPrintScale(50); setPrintFlipped(false) }
-  }, [])
-
-  // Close on Escape
+  // Close on Escape.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
-  // Global mouseup
-  useEffect(() => {
-    const up = () => { setIsDragging(false); setIsResizing(null) }
-    window.addEventListener("mouseup", up)
-    return () => window.removeEventListener("mouseup", up)
-  }, [])
-
+  // Recompute displayed image bounds inside the canvas container.
   const updateImageRect = useCallback(() => {
     if (!imageRef.current || !canvasRef.current) return
     const img = imageRef.current
     const canvas = canvasRef.current
     const cr = canvas.getBoundingClientRect()
+    if (!img.naturalWidth || !img.naturalHeight) return
     const ratio = img.naturalWidth / img.naturalHeight
     const cRatio = cr.width / cr.height
     let rw: number, rh: number
@@ -186,62 +218,51 @@ export function ProductConstructorModal({ base, print, productId, productName: i
     return () => window.removeEventListener("resize", updateImageRect)
   }, [updateImageRect])
 
-  const SNAP_THRESHOLD = 3 // % distance to snap to center
-  const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
-
-  const constrainPos = useCallback((x: number, y: number, halfX: number, halfY: number) => ({
-    x: Math.max(halfX, Math.min(100 - halfX, x)),
-    y: Math.max(halfY, Math.min(100 - halfY, y)),
-  }), [])
-
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isResizing) {
-      const dx = e.clientX - resizeStartPos.x
-      const dy = e.clientY - resizeStartPos.y
-      const delta = isResizing === "shrink" ? -(dx + dy) / 3 : (dx + dy) / 3
-      const newScale = Math.max(10, Math.min(100, resizeStartScale + delta))
-      setPrintScale(newScale)
-      if (currentZone && imageRect) {
-        const zw = (currentZone.width / 100) * imageRect.width
-        const zh = (currentZone.height / 100) * imageRect.height
-        const halfX = newScale / 2
-        const halfY = (newScale / 100 * zw / printAspect) / zh * 50
-        setPrintPosition((pos) => constrainPos(pos.x, pos.y, halfX, halfY))
-      }
-      return
+  // Save the current draft for the zone we're leaving.
+  const stashCurrentPlacement = useCallback((zoneId: string | null) => {
+    if (!zoneId) return
+    placementsRef.current[zoneId] = {
+      zone_id: parseInt(zoneId),
+      x: printPosition.x,
+      y: printPosition.y,
+      scale: printScale,
+      is_mirrored: printFlipped,
     }
-    if (!isDragging || !canvasRef.current || !currentZone || !imageRect) return
-    const cr = canvasRef.current.getBoundingClientRect()
-    const zl = imageRect.left + (currentZone.x / 100) * imageRect.width
-    const zt = imageRect.top + (currentZone.y / 100) * imageRect.height
-    const zw = (currentZone.width / 100) * imageRect.width
-    const zh = (currentZone.height / 100) * imageRect.height
-    const mx = e.clientX - cr.left - zl
-    const my = e.clientY - cr.top - zt
-    const halfX = printScale / 2
-    const halfY = (printScale / 100 * zw / printAspect) / zh * 50
-    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100, halfX, halfY)
-    const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
-    const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
-    if (snapX) newPos.x = 50
-    if (snapY) newPos.y = 50
-    setSnappedAxis({ x: snapX, y: snapY })
-    pendingPosRef.current = newPos
-    if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(() => {
-        if (pendingPosRef.current) setPrintPosition(pendingPosRef.current)
-        rafRef.current = null
-      })
-    }
-  }, [isDragging, isResizing, resizeStartPos, resizeStartScale, currentZone, imageRect, constrainPos, printScale, printAspect])
+  }, [printPosition.x, printPosition.y, printScale, printFlipped])
 
-  const handleMouseUp = () => {
-    setIsDragging(false)
-    setIsResizing(null)
-    setSnappedAxis({ x: false, y: false })
-    if (pendingPosRef.current) { setPrintPosition(pendingPosRef.current); pendingPosRef.current = null }
-    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
-  }
+  // Apply a placement into local state (or defaults).
+  const applyPlacement = useCallback((zoneId: string | null) => {
+    if (!zoneId) return
+    const p = placementsRef.current[zoneId]
+    if (p) {
+      setPrintPosition({ x: p.x, y: p.y })
+      setPrintScale(p.scale)
+      setPrintFlipped(p.is_mirrored)
+    } else {
+      setPrintPosition({ x: 50, y: 50 })
+      setPrintScale(50)
+      setPrintFlipped(false)
+    }
+  }, [])
+
+  const handleImageChange = useCallback((newIndex: number) => {
+    if (newIndex === imgIndex) return
+    stashCurrentPlacement(selectedZoneId)
+    setImgIndex(newIndex)
+    const nextImg = visibleImages[newIndex]
+    const nextZoneId = nextImg?.zones[0]?.id ?? null
+    setSelectedZoneId(nextZoneId)
+    applyPlacement(nextZoneId)
+    setIsPrintSelected(false)
+  }, [imgIndex, selectedZoneId, stashCurrentPlacement, visibleImages, applyPlacement])
+
+  const handleZoneChange = useCallback((newZoneId: string) => {
+    if (newZoneId === selectedZoneId) return
+    stashCurrentPlacement(selectedZoneId)
+    setSelectedZoneId(newZoneId)
+    applyPlacement(newZoneId)
+    setIsPrintSelected(false)
+  }, [selectedZoneId, stashCurrentPlacement, applyPlacement])
 
   const handleReset = () => {
     setPrintPosition({ x: 50, y: 50 })
@@ -249,18 +270,210 @@ export function ProductConstructorModal({ base, print, productId, productName: i
     setPrintFlipped(false)
   }
 
+  // ——— Geometry helpers ———
+  const getZonePx = useCallback(() => {
+    if (!imageRect || !currentZone) return null
+    return {
+      left: imageRect.left + (currentZone.x / 100) * imageRect.width,
+      top: imageRect.top + (currentZone.y / 100) * imageRect.height,
+      width: (currentZone.width / 100) * imageRect.width,
+      height: (currentZone.height / 100) * imageRect.height,
+    }
+  }, [imageRect, currentZone])
+
+  const clientToZonePct = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    const zone = getZonePx()
+    if (!canvas || !zone) return null
+    const cr = canvas.getBoundingClientRect()
+    const x = ((clientX - cr.left - zone.left) / zone.width) * 100
+    const y = ((clientY - cr.top - zone.top) / zone.height) * 100
+    return { x, y }
+  }, [getZonePx])
+
+  const halfSizePct = useCallback((scaleOverride?: number) => {
+    const zone = getZonePx()
+    if (!zone) return { halfX: 0, halfY: 0 }
+    const scale = scaleOverride ?? printScale
+    const halfX = scale / 2
+    const halfY = (((scale / 100) * zone.width) / printAspect / zone.height) * 50
+    return { halfX, halfY }
+  }, [getZonePx, printScale, printAspect])
+
+  const constrainPos = useCallback((x: number, y: number, halfX: number, halfY: number) => ({
+    x: Math.max(halfX, Math.min(100 - halfX, x)),
+    y: Math.max(halfY, Math.min(100 - halfY, y)),
+  }), [])
+
+  const scheduleCommit = useCallback(() => {
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => {
+      const pending = pendingStateRef.current
+      if (pending.pos) setPrintPosition(pending.pos)
+      if (pending.scale != null) setPrintScale(pending.scale)
+      if (pending.snap) setSnappedAxis(pending.snap)
+      pendingStateRef.current = {}
+      rafRef.current = null
+    })
+  }, [])
+
+  // ——— Gesture starters ———
+  const startDrag = useCallback((pointerId: number) => {
+    gestureRef.current = { kind: "drag", pointerIds: [pointerId] }
+    setIsDragging(true)
+    setIsResizing(false)
+    setIsPinching(false)
+    setIsPrintSelected(true)
+  }, [])
+
+  const startPinch = useCallback((idA: number, idB: number) => {
+    const a = pointersRef.current.get(idA)
+    const b = pointersRef.current.get(idB)
+    if (!a || !b) return
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+    const midPx = { clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2 }
+    const midPct = clientToZonePct(midPx.clientX, midPx.clientY)
+    if (!midPct) return
+    gestureRef.current = {
+      kind: "pinch",
+      pointerIds: [idA, idB],
+      startPinchDist: dist,
+      startPinchScale: printScale,
+      startPinchCenter: { x: printPosition.x, y: printPosition.y },
+      startPinchMidpoint: midPct,
+    }
+    setIsDragging(false)
+    setIsResizing(false)
+    setIsPinching(true)
+  }, [clientToZonePct, printScale, printPosition.x, printPosition.y])
+
+  // ——— Print-element pointer handlers ———
+  const onPrintPointerDown = (e: React.PointerEvent) => {
+    if (!currentZone || !imageRect) return
+    e.stopPropagation()
+    try { (e.target as Element).setPointerCapture(e.pointerId) } catch {}
+    pointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+
+    if (pointersRef.current.size === 1) {
+      startDrag(e.pointerId)
+    } else if (pointersRef.current.size === 2) {
+      const ids = Array.from(pointersRef.current.keys())
+      startPinch(ids[0], ids[1])
+    }
+  }
+
+  const onResizePointerDown = (dir: "shrink" | "grow") => (e: React.PointerEvent) => {
+    if (!currentZone) return
+    e.stopPropagation()
+    e.preventDefault()
+    try { (e.target as Element).setPointerCapture(e.pointerId) } catch {}
+    pointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+    gestureRef.current = {
+      kind: "resize",
+      pointerIds: [e.pointerId],
+      dir,
+      startClient: { x: e.clientX, y: e.clientY },
+      startScale: printScale,
+    }
+    setIsResizing(true)
+    setIsDragging(false)
+    setIsPinching(false)
+    setIsPrintSelected(true)
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const g = gestureRef.current
+    if (!g) return
+    if (!pointersRef.current.has(e.pointerId)) return
+    pointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+
+    if (g.kind === "drag" && g.pointerIds[0] === e.pointerId) {
+      // /create-style: print center follows the cursor (no grab-offset).
+      const pct = clientToZonePct(e.clientX, e.clientY)
+      if (!pct) return
+      const { halfX, halfY } = halfSizePct()
+      const constrained = constrainPos(pct.x, pct.y, halfX, halfY)
+      let { x: nx, y: ny } = constrained
+      const snapX = Math.abs(nx - 50) < SNAP_THRESHOLD
+      const snapY = Math.abs(ny - 50) < SNAP_THRESHOLD
+      if (snapX) nx = 50
+      if (snapY) ny = 50
+      pendingStateRef.current.pos = { x: nx, y: ny }
+      pendingStateRef.current.snap = { x: snapX, y: snapY }
+      scheduleCommit()
+    } else if (g.kind === "resize" && g.pointerIds[0] === e.pointerId) {
+      // /create-style: delta = ±(dx + dy) / 3 depending on direction.
+      if (!g.startClient || g.startScale == null || !g.dir) return
+      const dx = e.clientX - g.startClient.x
+      const dy = e.clientY - g.startClient.y
+      const delta = g.dir === "shrink" ? -(dx + dy) / 3 : (dx + dy) / 3
+      const newScale = Math.max(10, Math.min(100, g.startScale + delta))
+      const { halfX, halfY } = halfSizePct(newScale)
+      const pos = constrainPos(printPosition.x, printPosition.y, halfX, halfY)
+      pendingStateRef.current.scale = newScale
+      pendingStateRef.current.pos = pos
+      scheduleCommit()
+    } else if (g.kind === "pinch" && g.pointerIds.length === 2) {
+      const [idA, idB] = g.pointerIds
+      const a = pointersRef.current.get(idA)
+      const b = pointersRef.current.get(idB)
+      if (!a || !b || g.startPinchDist == null || g.startPinchScale == null || !g.startPinchCenter || !g.startPinchMidpoint) return
+      const curDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+      const newScale = Math.max(10, Math.min(100, g.startPinchScale * (curDist / g.startPinchDist)))
+      const midPct = clientToZonePct((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+      if (!midPct) return
+      const nx = g.startPinchCenter.x + (midPct.x - g.startPinchMidpoint.x)
+      const ny = g.startPinchCenter.y + (midPct.y - g.startPinchMidpoint.y)
+      const { halfX, halfY } = halfSizePct(newScale)
+      const pos = constrainPos(nx, ny, halfX, halfY)
+      pendingStateRef.current.scale = newScale
+      pendingStateRef.current.pos = pos
+      scheduleCommit()
+    }
+  }
+
+  const endPointer = useCallback((pointerId: number) => {
+    pointersRef.current.delete(pointerId)
+    const g = gestureRef.current
+    if (!g) return
+    if (!g.pointerIds.includes(pointerId)) return
+
+    if (g.kind === "pinch") {
+      const remaining = g.pointerIds.find((id) => id !== pointerId)
+      if (remaining != null && pointersRef.current.has(remaining)) {
+        // Transition back to single-finger drag seamlessly.
+        setIsPinching(false)
+        startDrag(remaining)
+        return
+      }
+    }
+    gestureRef.current = null
+    setIsDragging(false)
+    setIsResizing(false)
+    setIsPinching(false)
+    setSnappedAxis({ x: false, y: false })
+    // Flush any pending state.
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    const pending = pendingStateRef.current
+    if (pending.pos) setPrintPosition(pending.pos)
+    if (pending.scale != null) setPrintScale(pending.scale)
+    pendingStateRef.current = {}
+  }, [startDrag])
+
+  const onPointerUp = (e: React.PointerEvent) => { endPointer(e.pointerId) }
+  const onPointerCancel = (e: React.PointerEvent) => { endPointer(e.pointerId) }
+
   const handleSave = async () => {
     setSaving(true)
-    
-    // Save current zone to ref before building save payload
     if (selectedZoneId) {
       placementsRef.current[selectedZoneId] = {
         zone_id: parseInt(selectedZoneId),
-        x: printPosition.x, y: printPosition.y,
-        scale: printScale, is_mirrored: printFlipped,
+        x: printPosition.x,
+        y: printPosition.y,
+        scale: printScale,
+        is_mirrored: printFlipped,
       }
     }
-    
     const config: PrintConfig = {
       x: printPosition.x,
       y: printPosition.y,
@@ -269,26 +482,30 @@ export function ProductConstructorModal({ base, print, productId, productName: i
       zoneId: selectedZoneId,
       imageIndex: imgIndex,
     }
-    
     try {
       const supabase = createClient()
       const placementsToSave = Object.values(placementsRef.current)
-      
       if (placementsToSave.length > 0) {
         await supabase.from("product_print_placements").delete().eq("product_id", parseInt(productId))
         await supabase.from("product_print_placements").insert(
           placementsToSave.map((p) => ({
             product_id: parseInt(productId),
-            zone_id: p.zone_id, x: p.x, y: p.y, scale: p.scale, is_mirrored: p.is_mirrored,
+            zone_id: p.zone_id,
+            x: p.x, y: p.y, scale: p.scale, is_mirrored: p.is_mirrored,
           }))
         )
       }
-      
+      // Persist the currently-edited (image, zone) as the primary so that the
+      // product preview reflects whatever the admin last positioned.
+      const productUpdate: Record<string, unknown> = {}
       if (productName.trim()) {
-        await supabase.from("products").update({
-          name: productName.trim(),
-          description: productDescription.trim() || null,
-        }).eq("id", parseInt(productId))
+        productUpdate.name = productName.trim()
+        productUpdate.description = productDescription.trim() || null
+      }
+      if (currentImage) productUpdate.base_image_id = parseInt(currentImage.id)
+      if (selectedZoneId) productUpdate.zone_id = parseInt(selectedZoneId)
+      if (Object.keys(productUpdate).length > 0) {
+        await supabase.from("products").update(productUpdate).eq("id", parseInt(productId))
       }
       onSaved(productId, config)
       setSaved(true)
@@ -299,6 +516,9 @@ export function ProductConstructorModal({ base, print, productId, productName: i
       setSaving(false)
     }
   }
+
+  const showImagePicker = visibleImages.length > 1
+  const showZonePicker = currentImage && currentImage.zones.length > 1
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
@@ -329,18 +549,12 @@ export function ProductConstructorModal({ base, print, productId, productName: i
               disabled={saving}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
-                saved
-                  ? "bg-primary/10 text-primary"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90",
+                saved ? "bg-primary/10 text-primary" : "bg-primary text-primary-foreground hover:bg-primary/90",
                 saving && "opacity-60 cursor-not-allowed"
               )}
             >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : saved ? (
-                <Check className="h-4 w-4" />
-              ) : null}
-              {saved ? "Збережено" : "Зберегти"}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
+              {saved ? "\u0417\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E" : "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438"}
             </button>
             <button
               onClick={onClose}
@@ -353,84 +567,111 @@ export function ProductConstructorModal({ base, print, productId, productName: i
 
         <div className="flex flex-col sm:flex-row flex-1 min-h-0 gap-0">
 
-          {/* Left panel: image switcher + zone picker */}
-          <div className="flex w-full sm:w-60 shrink-0 flex-row sm:flex-col border-b sm:border-b-0 sm:border-r border-border overflow-x-auto sm:overflow-x-visible max-h-[120px] sm:max-h-none">
-            {/* Image tabs */}
-            {images.length > 1 && (
-              <div className="border-b border-border p-3">
-                <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Вигляд</p>
-                <div className="flex flex-wrap gap-2">
-                  {images.map((img, idx) => (
+          {/* Sidebar */}
+          <div className="flex w-full sm:w-60 shrink-0 flex-row sm:flex-col border-b sm:border-b-0 sm:border-r border-border overflow-x-auto sm:overflow-x-visible max-h-[160px] sm:max-h-none">
+
+            {showImagePicker && (
+              <div className="border-b border-border p-3 shrink-0 sm:shrink">
+                <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {"\u0412\u0438\u0433\u043B\u044F\u0434"}
+                </p>
+                <div className="flex sm:flex-wrap gap-2">
+                  {visibleImages.map((img, idx) => (
                     <button
                       key={img.id}
                       onClick={() => handleImageChange(idx)}
                       className={cn(
-                        "h-12 w-12 overflow-hidden rounded-lg border-2 transition-all",
-                        imgIndex === idx ? "border-primary" : "border-border hover:border-primary/50"
+                        "h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 bg-muted/30 transition-all",
+                        imgIndex === idx
+                          ? "border-primary ring-2 ring-primary/30 scale-[1.03]"
+                          : "border-border hover:border-primary/50"
                       )}
+                      title={img.label}
                     >
-                      <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
+                      <img src={img.url} alt={img.label} className="h-full w-full object-contain" />
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Zone picker */}
-            <div className="flex-1 overflow-y-auto p-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Зони</p>
-              {currentImage?.zones.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Зони не налаштовані для цього зображення</p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
+            {showZonePicker && (
+              <div className="flex-1 overflow-y-auto p-3 min-w-[180px]">
+                <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {"\u0417\u043E\u043D\u0438"}
+                </p>
+                <div className="flex sm:flex-col flex-row gap-1.5">
                   {currentImage?.zones.map((z) => {
-                    const active = (selectedZoneId ?? currentImage.zones[0]?.id) === z.id
+                    const active = selectedZoneId === z.id
                     return (
                       <button
                         key={z.id}
                         onClick={() => handleZoneChange(z.id)}
                         className={cn(
-                          "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                          "flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-all",
                           active
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-foreground hover:border-primary/40"
+                            ? "border-primary bg-primary/10 text-primary font-medium"
+                            : "border-border text-foreground hover:border-primary/40 hover:bg-muted/40"
                         )}
                       >
-                        {active
-                          ? <CheckSquare className="h-4 w-4 shrink-0" />
-                          : <Square className="h-4 w-4 shrink-0" />
-                        }
-                        {z.name || `Зона ${z.id}`}
+                        <span
+                          className={cn(
+                            "h-2 w-2 shrink-0 rounded-full",
+                            active ? "bg-primary" : "bg-muted-foreground/40"
+                          )}
+                        />
+                        <span className="truncate">{z.name || `\u0417\u043E\u043D\u0430 ${z.id}`}</span>
+                        {z.is_max && (
+                          <span
+                            className={cn(
+                              "ml-auto rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide",
+                              active
+                                ? "bg-primary/20 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                            title="\u041C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u0430 \u0437\u043E\u043D\u0430"
+                          >
+                            MAX
+                          </span>
+                        )}
+                        {!z.is_max && typeof z.price === "number" && z.price > 0 && (
+                          <span className="ml-auto text-xs text-muted-foreground">+{z.price}₴</span>
+                        )}
                       </button>
                     )
                   })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Controls */}
-            <div className="border-t border-border p-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Розмір принту</p>
+            <div className="border-t border-border p-3 shrink-0 sm:shrink">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {"\u0420\u043E\u0437\u043C\u0456\u0440"}
+                </p>
+                <span className="text-xs tabular-nums text-muted-foreground">{Math.round(printScale)}%</span>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPrintScale((s) => Math.max(10, s - 10))}
                   className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
+                  aria-label="zoom out"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
                 </button>
-                <div className="relative flex-1">
-                  <input
-                    type="range"
-                    min={10}
-                    max={100}
-                    value={printScale}
-                    onChange={(e) => setPrintScale(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={printScale}
+                  onChange={(e) => setPrintScale(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
                 <button
                   onClick={() => setPrintScale((s) => Math.min(100, s + 10))}
                   className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
+                  aria-label="zoom in"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
                 </button>
@@ -441,33 +682,45 @@ export function ProductConstructorModal({ base, print, productId, productName: i
                   onClick={() => setPrintFlipped((f) => !f)}
                   className={cn(
                     "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-all",
-                    printFlipped ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"
+                    printFlipped
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:bg-muted"
                   )}
                 >
                   <FlipHorizontal2 className="h-3.5 w-3.5" />
-                  Дзеркало
+                  {"\u0414\u0437\u0435\u0440\u043A\u0430\u043B\u043E"}
                 </button>
                 <button
                   onClick={handleReset}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Скинути
+                  {"\u0421\u043A\u0438\u043D\u0443\u0442\u0438"}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Main canvas */}
-          <div className="flex flex-1 flex-col items-center justify-center bg-muted/20 p-6">
-            {currentImage ? (
+          {/* Canvas */}
+          <div className="flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 sm:p-6">
+            {!hasImages ? (
+              <div className="rounded-xl border border-border bg-card p-5 text-center shadow-sm">
+                <p className="font-medium text-foreground">
+                  {"\u041D\u0435\u043C\u0430\u0454 \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u0438\u0445 \u0437\u043E\u043D"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {"\u041F\u0435\u0440\u0435\u0441\u0442\u0432\u043E\u0440\u0456\u0442\u044C \u0442\u043E\u0432\u0430\u0440 \u0447\u0435\u0440\u0435\u0437 \u0433\u0435\u043D\u0435\u0440\u0430\u0442\u043E\u0440 \u0430\u0431\u043E \u0434\u043E\u0434\u0430\u0439\u0442\u0435 \u0437\u043E\u043D\u0438 \u0434\u043E \u043E\u0441\u043D\u043E\u0432\u0438."}
+                </p>
+              </div>
+            ) : currentImage ? (
               <div
                 ref={canvasRef}
                 className="relative select-none"
-                style={{ width: "100%", maxWidth: 520, aspectRatio: "1 / 1" }}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
+                style={{ width: "100%", maxWidth: 520, aspectRatio: "1 / 1", touchAction: "none" }}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerCancel}
+                onPointerLeave={() => { /* keep gesture until explicit up/cancel via capture */ }}
               >
                 <img
                   ref={imageRef}
@@ -480,58 +733,66 @@ export function ProductConstructorModal({ base, print, productId, productName: i
 
                 {currentZone && imageRect && (
                   <div
+                    ref={zoneRef}
                     className="absolute rounded-sm border-2 border-dashed border-primary/60 bg-primary/5"
                     style={{
                       left: imageRect.left + (currentZone.x / 100) * imageRect.width,
                       top: imageRect.top + (currentZone.y / 100) * imageRect.height,
                       width: (currentZone.width / 100) * imageRect.width,
                       height: (currentZone.height / 100) * imageRect.height,
+                      touchAction: "none",
                     }}
                     onClick={() => setIsPrintSelected(false)}
                   >
-                    {/* Snap guide lines — visible when print snaps to center */}
-                    {(snappedAxis.x || snappedAxis.y) && (
+                    {/* Zone label chip (shown only when idle). */}
+                    {!isDragging && !isResizing && !isPinching && currentZone.name && (
+                      <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">
+                        {currentZone.name}
+                      </span>
+                    )}
+
+                    {/* Snap guides */}
+                    {isDragging && (snappedAxis.x || snappedAxis.y) && (
                       <div className="pointer-events-none absolute inset-0 overflow-hidden">
                         {snappedAxis.x && (
                           <div
                             className="absolute left-1/2 top-0 h-full -translate-x-1/2"
-                            style={{ width: 0, borderLeft: "2px dashed #f43f5e" }}
+                            style={{ width: 0, borderLeft: "1px dashed #d946ef" }}
                           />
                         )}
                         {snappedAxis.y && (
                           <div
                             className="absolute left-0 top-1/2 w-full -translate-y-1/2"
-                            style={{ height: 0, borderTop: "2px dashed #f43f5e" }}
+                            style={{ height: 0, borderTop: "1px dashed #d946ef" }}
                           />
                         )}
                       </div>
                     )}
+
                     {print.image_url && (
                       <div
                         className={cn(
-                          "absolute cursor-move",
-                          isPrintSelected ? "outline outline-2 outline-dashed outline-foreground/60" : "",
-                          isDragging ? "" : "transition-[left,top] duration-75"
+                          "absolute",
+                          isPrintSelected ? "outline-1 outline-dashed outline-foreground/60" : "",
+                          isDragging ? "cursor-grabbing" : "cursor-grab",
                         )}
                         style={{
                           left: `${printPosition.x}%`,
                           top: `${printPosition.y}%`,
                           width: `${printScale}%`,
                           aspectRatio: `${printAspect}`,
-                          transform: `translate(-50%, -50%)${printFlipped ? " scaleX(-1)" : ""}`,
-                          willChange: isDragging ? "left, top" : "auto",
+                          transform: "translate(-50%, -50%)",
+                          touchAction: "none",
+                          willChange: isDragging || isResizing || isPinching ? "left, top, width" : "auto",
                         }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation()
-                          setIsPrintSelected(true)
-                          setIsDragging(true)
-                        }}
+                        onPointerDown={onPrintPointerDown}
                         onClick={(e) => { e.stopPropagation(); setIsPrintSelected(true) }}
                       >
                         <img
                           src={print.image_url}
                           alt={print.name}
                           className="pointer-events-none h-full w-full object-contain drop-shadow-md"
+                          style={printFlipped ? { transform: "scaleX(-1)" } : undefined}
                           draggable={false}
                           onLoad={(e) => {
                             const img = e.currentTarget
@@ -545,41 +806,33 @@ export function ProductConstructorModal({ base, print, productId, productName: i
                           <>
                             {/* Top-left: shrink */}
                             <div
-                              onMouseDown={(e) => {
-                                e.stopPropagation(); e.preventDefault()
-                                setIsResizing("shrink")
-                                setResizeStartPos({ x: e.clientX, y: e.clientY })
-                                setResizeStartScale(printScale)
-                              }}
-                              className="absolute -left-4 -top-4 flex h-8 w-8 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110"
+                              onPointerDown={onResizePointerDown("shrink")}
+                              className="absolute -left-4 -top-4 z-30 flex h-9 w-9 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
+                              style={{ touchAction: "none" }}
+                              aria-label="shrink"
                             >
-                              <Minimize2 className="h-3.5 w-3.5 text-foreground" />
+                              <Minimize2 className="h-4 w-4 text-foreground" />
                             </div>
-                            {/* Top-right: deselect */}
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setIsPrintSelected(false) }}
-                              className="absolute -right-4 -top-4 flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110"
-                            >
-                              <X className="h-3.5 w-3.5 text-foreground" />
-                            </button>
                             {/* Bottom-left: flip */}
                             <button
+                              onPointerDown={(e) => e.stopPropagation()}
                               onClick={(e) => { e.stopPropagation(); setPrintFlipped((f) => !f) }}
-                              className="absolute -bottom-4 -left-4 flex h-8 w-8 items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110"
+                              className={cn(
+                                "absolute -bottom-4 -left-4 z-30 flex h-9 w-9 items-center justify-center rounded-full border-2 bg-card shadow-md transition-transform hover:scale-110",
+                                printFlipped ? "border-primary text-primary" : "border-border text-foreground",
+                              )}
+                              aria-label="flip"
                             >
-                              <FlipHorizontal2 className="h-3.5 w-3.5 text-foreground" />
+                              <FlipHorizontal2 className="h-4 w-4" />
                             </button>
                             {/* Bottom-right: grow */}
                             <div
-                              onMouseDown={(e) => {
-                                e.stopPropagation(); e.preventDefault()
-                                setIsResizing("grow")
-                                setResizeStartPos({ x: e.clientX, y: e.clientY })
-                                setResizeStartScale(printScale)
-                              }}
-                              className="absolute -bottom-4 -right-4 flex h-8 w-8 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md hover:scale-110"
+                              onPointerDown={onResizePointerDown("grow")}
+                              className="absolute -bottom-4 -right-4 z-30 flex h-9 w-9 cursor-nwse-resize items-center justify-center rounded-full border-2 border-border bg-card shadow-md transition-transform hover:scale-110"
+                              style={{ touchAction: "none" }}
+                              aria-label="resize"
                             >
-                              <Maximize2 className="h-3.5 w-3.5 text-foreground" />
+                              <Maximize2 className="h-4 w-4 text-foreground" />
                             </div>
                           </>
                         )}
@@ -587,44 +840,8 @@ export function ProductConstructorModal({ base, print, productId, productName: i
                     )}
                   </div>
                 )}
-
-                {currentImage.zones.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
-                    <div className="rounded-xl border border-border bg-card p-5 text-center shadow-lg">
-                      <p className="font-medium text-foreground">Зони не налаштовані</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Додайте зони до цієї основи у вкладці «Основи»
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Немає зображень</p>
-            )}
-
-            {/* Image nav arrows */}
-            {images.length > 1 && (
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  onClick={() => handleImageChange(Math.max(0, imgIndex - 1))}
-                  disabled={imgIndex === 0}
-                  className="rounded-full border border-border bg-card p-2 shadow disabled:opacity-30 hover:bg-muted"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-sm text-muted-foreground">
-                  {currentImage?.label || `${imgIndex + 1} / ${images.length}`}
-                </span>
-                <button
-                  onClick={() => handleImageChange(Math.min(images.length - 1, imgIndex + 1))}
-                  disabled={imgIndex === images.length - 1}
-                  className="rounded-full border border-border bg-card p-2 shadow disabled:opacity-30 hover:bg-muted"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

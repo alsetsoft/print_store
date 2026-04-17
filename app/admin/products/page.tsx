@@ -18,6 +18,7 @@ interface RawProduct {
   is_active: boolean
   created_at: string
   base_image_id: number | null
+  zone_id: number | null
   print_config: PrintConfig | null
   bases: { id: string; name: string; image_url: string | null } | null
   print_designs: { id: string; name: string; image_url: string | null } | null
@@ -40,11 +41,14 @@ interface ProductWithImages {
   is_active: boolean
   created_at: string
   base_image_id: number | null
+  zone_id: number | null
   print_config: PrintConfig | null
   placements: Record<string, PrintPlacement>
   base: CompositeBase | null
   print: { id: string; name: string; image_url: string | null } | null
   multiZoneSelection?: MultiZoneEntry[]
+  allowedPlacements: Array<{ imageId: string; zoneId: string }>
+  initialPrimary: { imageId: string; zoneId: string } | null
 }
 
 interface BaseForForm {
@@ -104,7 +108,14 @@ export default function ProductsPage() {
           }
         })
 
-        if (!p.bases) return { ...p, base: null, print: p.print_designs, placements }
+        if (!p.bases) return {
+          ...p,
+          base: null,
+          print: p.print_designs,
+          placements,
+          allowedPlacements: [],
+          initialPrimary: null,
+        }
 
         const { data: rawImages } = await supabase
           .from("base_images")
@@ -116,7 +127,7 @@ export default function ProductsPage() {
           (rawImages || []).map(async (img) => {
             const { data: zonesData } = await supabase
               .from("image_zones")
-              .select("id, name, x, y, width, height")
+              .select("id, name, x, y, width, height, is_max")
               .eq("base_image_id", img.id)
 
             const decoded = decodeLabel(img.url)
@@ -132,6 +143,7 @@ export default function ProductsPage() {
                 y: Number(z.y),
                 width: Number(z.width),
                 height: Number(z.height),
+                is_max: z.is_max ?? false,
               })),
             }
           })
@@ -148,7 +160,24 @@ export default function ProductsPage() {
           : images
 
         const base: CompositeBase = { id: String(p.bases.id), name: p.bases.name, images: filteredImages }
-        return { ...p, base_image_id: p.base_image_id ?? null, base, print: p.print_designs, placements }
+
+        // Determine the primary (image, zone) pair initially chosen in the generator.
+        const primaryImageId = p.base_image_id != null ? String(p.base_image_id) : null
+        const primaryZoneId = p.zone_id != null ? String(p.zone_id) : null
+        const initialPrimary = primaryImageId && primaryZoneId
+          ? { imageId: primaryImageId, zoneId: primaryZoneId }
+          : null
+
+        return {
+          ...p,
+          base_image_id: p.base_image_id ?? null,
+          zone_id: p.zone_id ?? null,
+          base,
+          print: p.print_designs,
+          placements,
+          allowedPlacements: [],
+          initialPrimary,
+        }
       })
     )
 
@@ -158,10 +187,11 @@ export default function ProductsPage() {
       if (p.image_url) printImageMap[String(p.id)] = p.image_url
     }
 
-    // Construct multiZoneSelection per product
+    // Construct multiZoneSelection + allowedPlacements per product
     for (const product of enriched) {
       if (!product.base || !product.placements) continue
       const entries: MultiZoneEntry[] = []
+      const allowed: Array<{ imageId: string; zoneId: string }> = []
       for (const img of product.base.images) {
         for (const zone of img.zones) {
           const placement = product.placements[zone.id]
@@ -172,11 +202,17 @@ export default function ProductsPage() {
             entry.printImageUrl = printImageMap[placement.print_id]
           }
           entries.push(entry)
+          allowed.push({ imageId: img.id, zoneId: zone.id })
         }
       }
       if (entries.length > 0) {
         product.multiZoneSelection = entries
       }
+      // Fallback for legacy products without placements rows: use the primary pair.
+      if (allowed.length === 0 && product.initialPrimary) {
+        allowed.push(product.initialPrimary)
+      }
+      product.allowedPlacements = allowed
     }
 
     setProducts(enriched)
@@ -256,35 +292,60 @@ export default function ProductsPage() {
           </div>
         ) : (
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredProducts.map((product) =>
-              product.base && product.print ? (
+            {filteredProducts.map((product) => {
+              if (!product.base || !product.print) {
+                return (
+                  <div
+                    key={product.id}
+                    className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
+                  >
+                    <div className="flex aspect-square items-center justify-center bg-muted">
+                      <Package className="h-10 w-10 text-muted-foreground/50" />
+                    </div>
+                    <div className="p-3">
+                      <p className="font-semibold text-foreground">{product.name}</p>
+                      <p className="text-sm text-muted-foreground">{product.price} ₴</p>
+                    </div>
+                  </div>
+                )
+              }
+              // Preview card displays only the primary (image, zone) pair chosen in the generator.
+              const primary = product.initialPrimary
+              const primaryImage = primary
+                ? product.base.images.find((img) => img.id === primary.imageId)
+                : null
+              const restrictedBase: CompositeBase = primary && primaryImage
+                ? {
+                    ...product.base,
+                    images: [
+                      {
+                        ...primaryImage,
+                        zones: primaryImage.zones.filter((z) => z.id === primary.zoneId),
+                      },
+                    ],
+                  }
+                : product.base
+              const restrictedPlacements = primary && product.placements[primary.zoneId]
+                ? { [primary.zoneId]: product.placements[primary.zoneId] }
+                : {}
+              const restrictedZoneSelection = primary
+                ? { [primary.imageId]: primary.zoneId }
+                : undefined
+              return (
                 <CompositeCard
                   key={product.id}
-                  base={product.base}
+                  base={restrictedBase}
                   print={product.print}
                   productName={product.name}
                   isActive={product.is_active}
                   printConfig={product.print_config}
-                  placements={product.placements}
-                  multiZoneSelection={product.multiZoneSelection}
+                  placements={restrictedPlacements}
+                  zoneSelection={restrictedZoneSelection}
                   onClick={() => setConstructorProduct(product)}
                   onDelete={() => setDeletingId(product.id)}
                 />
-              ) : (
-                <div
-                  key={product.id}
-                  className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
-                >
-                  <div className="flex aspect-square items-center justify-center bg-muted">
-                    <Package className="h-10 w-10 text-muted-foreground/50" />
-                  </div>
-                  <div className="p-3">
-                    <p className="font-semibold text-foreground">{product.name}</p>
-                    <p className="text-sm text-muted-foreground">{product.price} ₴</p>
-                  </div>
-                </div>
               )
-            )}
+            })}
           </div>
         )}
       </div>
@@ -313,6 +374,8 @@ export default function ProductsPage() {
           productName={constructorProduct.name}
           productDescription={constructorProduct.description}
           initialConfig={constructorProduct.print_config}
+          allowedPlacements={constructorProduct.allowedPlacements}
+          initialPrimary={constructorProduct.initialPrimary}
           onClose={() => {
             setConstructorProduct(null)
             fetchData()
