@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
-  Wand2, Search, CheckSquare, Loader2, Layers, Package, Plus, Check, Square, X, ChevronDown
+  Wand2, Search, CheckSquare, Loader2, Layers, Package, Plus, Check, X, ChevronDown
 } from "lucide-react"
 import { decodeLabel } from "@/app/admin/parameters/actions"
 import { cn } from "@/lib/utils"
@@ -57,6 +57,19 @@ function mapEntriesToColor(
 
     return { ...entry, imageId: targetImg.id, zoneId: targetZone.id }
   })
+}
+
+// Rough luminance check so we know whether to draw light or dark icons over a hex swatch.
+function isDarkHex(hex?: string | null): boolean {
+  if (!hex) return false
+  const h = hex.replace("#", "")
+  if (h.length !== 3 && h.length !== 6) return false
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h
+  const r = parseInt(full.slice(0, 2), 16)
+  const g = parseInt(full.slice(2, 4), 16)
+  const b = parseInt(full.slice(4, 6), 16)
+  // Perceived luminance (Rec. 709).
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140
 }
 
 // ─── Print Selector Dropdown ─────────────────────────────────────────────────
@@ -281,20 +294,6 @@ function ZonePickerModal({
   // Build a lookup: zoneId → entry index
   const selectedZoneIds = new Set(local.map((e) => e.zoneId))
 
-  // Find zone+image info by zoneId
-  const findZoneInfo = (zoneId: string) => {
-    for (const img of visibleImages) {
-      const zone = img.zones.find((z) => z.id === zoneId)
-      if (zone) return { image: img, zone }
-    }
-    // Also check all images as fallback
-    for (const img of base.images) {
-      const zone = img.zones.find((z) => z.id === zoneId)
-      if (zone) return { image: img, zone }
-    }
-    return null
-  }
-
   const toggleColor = (colorId: number) => {
     setSelectedColorIds((prev) => {
       if (prev.includes(colorId)) {
@@ -350,186 +349,229 @@ function ZonePickerModal({
   const isValid = local.every((e, i) => i === 0 || !!e.printId)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-5xl mx-4 sm:mx-auto rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div>
-            <h2 className="font-semibold text-foreground">{base.name}</h2>
-            <p className="text-sm text-muted-foreground">{"\u041E\u0431\u0435\u0440\u0456\u0442\u044C \u0437\u043E\u043D\u0438 \u0434\u043B\u044F \u0440\u043E\u0437\u043C\u0456\u0449\u0435\u043D\u043D\u044F \u043F\u0440\u0438\u043D\u0442\u0456\u0432 (\u043C\u043E\u0436\u043D\u0430 \u043A\u0456\u043B\u044C\u043A\u0430)"}</p>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 sm:p-4">
+      <div className="flex h-[100dvh] sm:h-auto sm:max-h-[92vh] w-full sm:max-w-5xl flex-col overflow-hidden rounded-none sm:rounded-2xl border-0 sm:border border-border bg-card shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-border px-5 sm:px-7 py-4">
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-foreground">{base.name}</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {"\u041E\u0431\u0435\u0440\u0456\u0442\u044C \u0437\u043E\u043D\u0438 \u0434\u043B\u044F \u0440\u043E\u0437\u043C\u0456\u0449\u0435\u043D\u043D\u044F \u043F\u0440\u0438\u043D\u0442\u0456\u0432"}
+            </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+            className="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="close"
           >
-            {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="max-h-[75vh] overflow-y-auto p-6">
-          {/* Color selector */}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5">
+          {/* Colors — large circular swatches */}
           {base.colors.length > 0 && (
-            <div className="mb-6">
-              <p className="mb-2 text-sm font-medium text-foreground">{"\u041A\u043E\u043B\u044C\u043E\u0440\u0438"}</p>
-              <div className="flex flex-wrap gap-2">
+            <section className="mb-6">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {"\u041A\u043E\u043B\u044C\u043E\u0440\u0438"}
+              </p>
+              <div className="flex flex-wrap gap-3">
                 {base.colors.map((color) => {
                   const isActive = selectedColorIds.includes(color.id)
+                  const isDisplay = displayColorId === color.id
                   return (
                     <button
                       key={color.id}
                       onClick={() => toggleColor(color.id)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-full border-2 px-3 py-1.5 text-sm transition-all",
-                        isActive
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border text-foreground hover:border-primary/50"
-                      )}
+                      className="group flex flex-col items-center gap-1.5"
+                      title={color.name}
                     >
-                      {color.hex_code && (
-                        <span
-                          className="h-4 w-4 rounded-full border border-border"
-                          style={{ backgroundColor: color.hex_code }}
-                        />
-                      )}
-                      {color.name}
-                      {isActive && <Check className="h-3.5 w-3.5" />}
+                      <span
+                        className={cn(
+                          "relative flex h-11 w-11 items-center justify-center rounded-full border transition-all",
+                          isActive
+                            ? "border-primary ring-4 ring-primary/20"
+                            : "border-border group-hover:border-primary/50"
+                        )}
+                        style={{ backgroundColor: color.hex_code ?? "transparent" }}
+                      >
+                        {isActive && (
+                          <Check
+                            className={cn(
+                              "h-4 w-4 drop-shadow",
+                              // Choose white for dark colors, dark for light.
+                              isDarkHex(color.hex_code) ? "text-white" : "text-neutral-800"
+                            )}
+                          />
+                        )}
+                        {isDisplay && (
+                          <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary ring-2 ring-card" />
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs font-medium",
+                          isActive ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {color.name}
+                      </span>
                     </button>
                   )
                 })}
               </div>
-            </div>
+            </section>
           )}
 
+          {/* Views */}
           {visibleImages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {"\u041D\u0435\u043C\u0430\u0454 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C \u0434\u043B\u044F \u0446\u0456\u0454\u0457 \u043E\u0441\u043D\u043E\u0432\u0438"}
-            </p>
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 py-10 text-center">
+              <p className="text-sm text-muted-foreground">
+                {"\u041D\u0435\u043C\u0430\u0454 \u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u044C \u0434\u043B\u044F \u0446\u0456\u0454\u0457 \u043E\u0441\u043D\u043E\u0432\u0438"}
+              </p>
+            </div>
           ) : (
-            <div className="space-y-6">
-              {visibleImages.map((img) => (
-                <div key={img.id}>
-                  <p className="mb-2 text-sm font-medium text-foreground">{img.label}</p>
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="relative h-52 w-52 shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
-                      <img src={img.url} alt={img.label} className="h-full w-full object-cover" />
-                      {img.zones.map((z) => (
-                        <div
-                          key={z.id}
-                          onClick={() => toggleZone(img.id, z.id)}
-                          className={cn(
-                            "absolute cursor-pointer border-2 transition-all",
-                            selectedZoneIds.has(z.id)
-                              ? "border-primary bg-primary/30"
-                              : "border-primary/50 bg-primary/10 hover:bg-primary/20"
-                          )}
-                          style={{
-                            left: `${z.x}%`,
-                            top: `${z.y}%`,
-                            width: `${z.width}%`,
-                            height: `${z.height}%`,
-                          }}
-                        />
-                      ))}
+            <div className="space-y-3">
+              {visibleImages.map((img) => {
+                const hasAnySelected = img.zones.some((z) => selectedZoneIds.has(z.id))
+                return (
+                  <div
+                    key={img.id}
+                    className={cn(
+                      "rounded-2xl border bg-card p-4 transition-all",
+                      hasAnySelected ? "border-primary/50 bg-primary/[.03]" : "border-border"
+                    )}
+                  >
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground">{img.label}</p>
+                      {hasAnySelected && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          {img.zones.filter((z) => selectedZoneIds.has(z.id)).length}
+                          {" "}
+                          {"\u043E\u0431\u0440\u0430\u043D\u043E"}
+                        </span>
+                      )}
                     </div>
-                    <div className="flex flex-col gap-2">
-                      {img.zones.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">{"\u0417\u043E\u043D\u0438 \u043D\u0435 \u0434\u043E\u0434\u0430\u043D\u0456"}</p>
-                      ) : (
-                        img.zones.map((z) => {
-                          const entryIdx = local.findIndex((e) => e.zoneId === z.id)
-                          const isSelected = entryIdx >= 0
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* Mockup */}
+                      <div className="relative h-56 w-56 shrink-0 self-center overflow-hidden rounded-xl border border-border bg-muted/40 sm:self-start">
+                        <img src={img.url} alt={img.label} className="h-full w-full object-contain" />
+                        {img.zones.map((z) => {
+                          const orderIdx = local.findIndex((e) => e.zoneId === z.id)
+                          const isSelected = orderIdx >= 0
                           return (
                             <button
                               key={z.id}
                               onClick={() => toggleZone(img.id, z.id)}
                               className={cn(
-                                "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-left text-sm transition-all",
+                                "absolute cursor-pointer rounded-sm border-2 transition-all",
                                 isSelected
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border text-foreground hover:border-primary/50"
+                                  ? "border-primary bg-primary/25 shadow-[inset_0_0_0_1px_rgb(255_255_255/.4)]"
+                                  : "border-primary/40 bg-primary/5 hover:border-primary/70 hover:bg-primary/15"
                               )}
+                              style={{
+                                left: `${z.x}%`,
+                                top: `${z.y}%`,
+                                width: `${z.width}%`,
+                                height: `${z.height}%`,
+                              }}
+                              aria-label={z.name || `Зона ${z.id}`}
                             >
-                              {isSelected
-                                ? <CheckSquare className="h-4 w-4 shrink-0" />
-                                : <Square className="h-4 w-4 shrink-0" />
-                              }
-                              {z.name || `\u0417\u043E\u043D\u0430 ${z.id}`}
                               {isSelected && (
-                                <span className="ml-auto rounded bg-primary/20 px-1.5 py-0.5 text-xs font-medium">
-                                  #{local.findIndex((e) => e.zoneId === z.id) + 1}
+                                <span className="absolute -left-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow">
+                                  {orderIdx + 1}
                                 </span>
                               )}
                             </button>
                           )
-                        })
-                      )}
+                        })}
+                      </div>
+
+                      {/* Zone chips + inline print picker for additional zones */}
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        {img.zones.length === 0 ? (
+                          <p className="text-xs italic text-muted-foreground">
+                            {"\u0417\u043E\u043D\u0438 \u043D\u0435 \u0434\u043E\u0434\u0430\u043D\u0456"}
+                          </p>
+                        ) : (
+                          img.zones.map((z) => {
+                            const orderIdx = local.findIndex((e) => e.zoneId === z.id)
+                            const isSelected = orderIdx >= 0
+                            const isPrimary = orderIdx === 0
+                            const entry = isSelected ? local[orderIdx] : null
+                            return (
+                              <div key={z.id} className="flex items-center gap-2">
+                                <button
+                                  onClick={() => toggleZone(img.id, z.id)}
+                                  className={cn(
+                                    "flex flex-1 items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-all",
+                                    isSelected
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border text-foreground hover:border-primary/40 hover:bg-muted/40"
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "flex h-6 min-w-6 items-center justify-center rounded-full text-[11px] font-bold transition-colors",
+                                      isSelected
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground"
+                                    )}
+                                  >
+                                    {isSelected ? orderIdx + 1 : ""}
+                                  </span>
+                                  <span className="truncate">
+                                    {z.name || `\u0417\u043E\u043D\u0430 ${z.id}`}
+                                  </span>
+                                  {isPrimary && (
+                                    <span className="ml-auto rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                      {"\u043E\u0441\u043D\u043E\u0432\u043D\u0438\u0439"}
+                                    </span>
+                                  )}
+                                </button>
+                                {isSelected && !isPrimary && entry && (
+                                  <PrintSelectorDropdown
+                                    prints={prints}
+                                    selectedPrintId={entry.printId}
+                                    onSelect={(printId, printImageUrl) =>
+                                      updateEntryPrint(entry.zoneId, printId, printImageUrl)
+                                    }
+                                  />
+                                )}
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Selected zones summary */}
-          {local.length > 0 && (
-            <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3">
-              <h3 className="mb-2 text-sm font-semibold text-foreground">{"\u041E\u0431\u0440\u0430\u043D\u0456 \u0437\u043E\u043D\u0438"}</h3>
-              <div className={cn("gap-2", local.length > 2 ? "grid grid-cols-1 sm:grid-cols-2" : "space-y-2")}>
-                {local.map((entry, i) => {
-                  const info = findZoneInfo(entry.zoneId)
-                  if (!info) return null
-                  return (
-                    <div key={entry.zoneId} className="flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="shrink truncate text-sm font-medium text-foreground">
-                        {info.zone.name || `\u0417\u043E\u043D\u0430 ${info.zone.id}`}
-                      </span>
-                      {i === 0 ? (
-                        <span className="shrink-0 rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                          {"\u041E\u0441\u043D\u043E\u0432\u043D\u0438\u0439 \u043F\u0440\u0438\u043D\u0442"}
-                        </span>
-                      ) : (
-                        <PrintSelectorDropdown
-                          prints={prints}
-                          selectedPrintId={entry.printId}
-                          onSelect={(printId, printImageUrl) =>
-                            updateEntryPrint(entry.zoneId, printId, printImageUrl)
-                          }
-                        />
-                      )}
-                      <button
-                        onClick={() => removeEntry(entry.zoneId)}
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
+                )
+              })}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
-          <p className="text-xs text-muted-foreground">
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/20 px-5 sm:px-7 py-3.5">
+          <p className="min-w-0 truncate text-xs text-muted-foreground">
             {local.length === 0
               ? "\u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043D\u0430 \u0437\u043E\u043D\u0443 \u0449\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438"
               : `${local.length} \u0437\u043E\u043D${local.length === 1 ? "\u0430" : local.length < 5 ? "\u0438" : ""} \u043E\u0431\u0440\u0430\u043D\u043E`}
             {selectedColorIds.length > 0 && ` \u2022 ${selectedColorIds.length} \u043A\u043E\u043B\u044C\u043E\u0440${selectedColorIds.length === 1 ? "" : selectedColorIds.length < 5 ? "\u0438" : "\u0456\u0432"}`}
           </p>
-          <div className="flex gap-3">
+          <div className="flex shrink-0 gap-2">
             <button
               onClick={onClose}
-              className="rounded-lg border border-border px-4 py-2 text-sm text-foreground hover:bg-muted"
+              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
             >
               {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
             </button>
             <button
               onClick={() => { onSave(local, selectedColorIds); onClose() }}
               disabled={!isValid}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438"}
             </button>
@@ -893,7 +935,6 @@ export default function GeneratePage() {
               const isSelected = selectedBaseIds.has(base.id)
               const hasZones = base.images.some((img) => img.zones.length > 0)
               const hasSelection = (zoneSelections[base.id] || []).length > 0
-              const totalZones = base.images.reduce((acc, img) => acc + img.zones.length, 0)
               const selectedColors = colorSelections[base.id] || []
               return (
                 <div
@@ -921,12 +962,6 @@ export default function GeneratePage() {
                     <p className="text-xs text-muted-foreground">{base.sku || base.base_categories?.name || "\u2014"}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className={cn(
-                      "flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-medium",
-                      totalZones > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    )}>
-                      {totalZones}
-                    </span>
                     {isSelected && hasZones && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setZonePickerBase(base) }}

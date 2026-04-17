@@ -15,6 +15,8 @@ interface PrintPlacement {
   y: number
   scale: number
   is_mirrored: boolean
+  print_id: number | null
+  print_image_url: string | null
 }
 
 export interface PrintConfig {
@@ -141,6 +143,9 @@ export function ProductConstructorModal({
 
   // Placements cache: zoneId → placement. Ref-only to avoid re-render loops.
   const placementsRef = useRef<Record<string, PrintPlacement>>({})
+  // Bumped whenever `placementsRef` changes in a way that should re-render the canvas
+  // (e.g. after initial DB load resolves per-zone print URLs).
+  const [placementsVersion, setPlacementsVersion] = useState(0)
 
   // Pointer + gesture tracking.
   const pointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map())
@@ -159,24 +164,43 @@ export function ProductConstructorModal({
   const currentImage = visibleImages[imgIndex]
   const currentZone = currentImage?.zones.find((z) => z.id === selectedZoneId) ?? currentImage?.zones[0] ?? null
 
-  // Load placements from DB once.
+  // Resolve which print image to render for the current zone. Non-primary zones
+  // can carry their own `print_id` in `product_print_placements`; fall back to
+  // the product's primary print image. Depend on `placementsVersion` so the
+  // canvas re-renders after the initial DB load populates per-zone URLs.
+  void placementsVersion
+  const activePrintUrl =
+    (selectedZoneId && placementsRef.current[selectedZoneId]?.print_image_url) || print.image_url
+
+  // Load placements from DB once (with each zone's assigned print).
   useEffect(() => {
     let mounted = true
     ;(async () => {
       const supabase = createClient()
       const { data } = await supabase
         .from("product_print_placements")
-        .select("*")
+        .select("zone_id, x, y, scale, is_mirrored, print_id, print_designs:print_id (image_url)")
         .eq("product_id", parseInt(productId))
       if (!mounted || !data) return
       const map: Record<string, PrintPlacement> = {}
-      for (const p of data) {
+      for (const p of data as unknown as Array<{
+        zone_id: number
+        x: number | string
+        y: number | string
+        scale: number | string
+        is_mirrored: boolean | null
+        print_id: number | null
+        print_designs: { image_url: string | null } | { image_url: string | null }[] | null
+      }>) {
+        const pd = Array.isArray(p.print_designs) ? p.print_designs[0] : p.print_designs
         map[String(p.zone_id)] = {
           zone_id: p.zone_id,
           x: Number(p.x),
           y: Number(p.y),
           scale: Number(p.scale),
           is_mirrored: p.is_mirrored ?? false,
+          print_id: p.print_id ?? null,
+          print_image_url: pd?.image_url ?? null,
         }
       }
       placementsRef.current = map
@@ -185,6 +209,8 @@ export function ProductConstructorModal({
         setPrintPosition({ x: p.x, y: p.y })
         setPrintScale(p.scale)
         setPrintFlipped(p.is_mirrored)
+        // Trigger a re-render so the right print image appears on the loaded zone.
+        setPlacementsVersion((v) => v + 1)
       }
     })()
     return () => { mounted = false }
@@ -218,15 +244,20 @@ export function ProductConstructorModal({
     return () => window.removeEventListener("resize", updateImageRect)
   }, [updateImageRect])
 
-  // Save the current draft for the zone we're leaving.
+  // Save the current draft for the zone we're leaving. Preserve the zone's
+  // assigned print (print_id + image URL) so non-primary zones keep their
+  // original print when we later reinsert all placements.
   const stashCurrentPlacement = useCallback((zoneId: string | null) => {
     if (!zoneId) return
+    const prev = placementsRef.current[zoneId]
     placementsRef.current[zoneId] = {
       zone_id: parseInt(zoneId),
       x: printPosition.x,
       y: printPosition.y,
       scale: printScale,
       is_mirrored: printFlipped,
+      print_id: prev?.print_id ?? null,
+      print_image_url: prev?.print_image_url ?? null,
     }
   }, [printPosition.x, printPosition.y, printScale, printFlipped])
 
@@ -466,14 +497,18 @@ export function ProductConstructorModal({
   const handleSave = async () => {
     setSaving(true)
     if (selectedZoneId) {
+      const prev = placementsRef.current[selectedZoneId]
       placementsRef.current[selectedZoneId] = {
         zone_id: parseInt(selectedZoneId),
         x: printPosition.x,
         y: printPosition.y,
         scale: printScale,
         is_mirrored: printFlipped,
+        print_id: prev?.print_id ?? null,
+        print_image_url: prev?.print_image_url ?? null,
       }
     }
+    const primaryPrintId = print.id ? parseInt(print.id) : null
     const config: PrintConfig = {
       x: printPosition.x,
       y: printPosition.y,
@@ -492,6 +527,8 @@ export function ProductConstructorModal({
             product_id: parseInt(productId),
             zone_id: p.zone_id,
             x: p.x, y: p.y, scale: p.scale, is_mirrored: p.is_mirrored,
+            // Keep the per-zone print assignment (falls back to the product's primary).
+            print_id: p.print_id ?? primaryPrintId,
           }))
         )
       }
@@ -769,7 +806,7 @@ export function ProductConstructorModal({
                       </div>
                     )}
 
-                    {print.image_url && (
+                    {activePrintUrl && (
                       <div
                         className={cn(
                           "absolute",
@@ -789,7 +826,7 @@ export function ProductConstructorModal({
                         onClick={(e) => { e.stopPropagation(); setIsPrintSelected(true) }}
                       >
                         <img
-                          src={print.image_url}
+                          src={activePrintUrl}
                           alt={print.name}
                           className="pointer-events-none h-full w-full object-contain drop-shadow-md"
                           style={printFlipped ? { transform: "scaleX(-1)" } : undefined}

@@ -309,25 +309,27 @@ export default function ProductsPage() {
                   </div>
                 )
               }
-              // Preview card displays only the primary (image, zone) pair chosen in the generator.
+              // Preview card mirrors the storefront: lock to the primary image
+              // (no left/right nav arrows) but render EVERY zone placement on it,
+              // each with its own print (matches components/store/product-card.tsx).
               const primary = product.initialPrimary
               const primaryImage = primary
                 ? product.base.images.find((img) => img.id === primary.imageId)
                 : null
-              const restrictedBase: CompositeBase = primary && primaryImage
-                ? {
-                    ...product.base,
-                    images: [
-                      {
-                        ...primaryImage,
-                        zones: primaryImage.zones.filter((z) => z.id === primary.zoneId),
-                      },
-                    ],
-                  }
+              const restrictedBase: CompositeBase = primaryImage
+                ? { ...product.base, images: [primaryImage] }
                 : product.base
-              const restrictedPlacements = primary && product.placements[primary.zoneId]
-                ? { [primary.zoneId]: product.placements[primary.zoneId] }
+              const activeImageId = primaryImage?.id ?? product.base.images[0]?.id ?? null
+              const restrictedPlacements = activeImageId && primaryImage
+                ? Object.fromEntries(
+                    Object.entries(product.placements).filter(([zoneId]) =>
+                      primaryImage.zones.some((z) => z.id === zoneId)
+                    )
+                  )
                 : {}
+              const restrictedMultiZoneSelection = activeImageId
+                ? product.multiZoneSelection?.filter((e) => e.imageId === activeImageId)
+                : undefined
               const restrictedZoneSelection = primary
                 ? { [primary.imageId]: primary.zoneId }
                 : undefined
@@ -340,6 +342,7 @@ export default function ProductsPage() {
                   isActive={product.is_active}
                   printConfig={product.print_config}
                   placements={restrictedPlacements}
+                  multiZoneSelection={restrictedMultiZoneSelection}
                   zoneSelection={restrictedZoneSelection}
                   onClick={() => setConstructorProduct(product)}
                   onDelete={() => setDeletingId(product.id)}
