@@ -153,7 +153,7 @@ export default async function ConstructorPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="px-3 py-3 sm:px-4 sm:py-4 lg:px-6 lg:py-5">
       <StoreBreadcrumb items={[{ label: "\u041a\u043e\u043d\u0441\u0442\u0440\u0443\u043a\u0442\u043e\u0440" }]} />
       <ConstructorClient base={base} images={images} colors={colors} prints={prints} printCategories={printCategories} printSubcategories={printSubcategories} sizes={sizes} />
     </div>

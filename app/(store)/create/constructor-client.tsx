@@ -1218,13 +1218,13 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       {/* ----------------------------------------------------------------- */}
       {/* LEFT — Preview (canvas + thumbs + colors)                          */}
       {/* ----------------------------------------------------------------- */}
-      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center bg-muted/20 p-4 lg:order-1 lg:p-8", isMobile && "pb-20")}>
+      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center gap-4 bg-muted/20 p-3 sm:p-4 lg:order-1 lg:gap-6 lg:p-6", isMobile && "pb-20")}>
         {currentImage ? (
           <>
             <div
               ref={canvasRef}
               className="relative w-full select-none constructor-canvas"
-              style={{ maxWidth: 560, aspectRatio: "1 / 1", touchAction: "none" }}
+              style={{ maxWidth: 760, aspectRatio: "1 / 1", touchAction: "none" }}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
@@ -1326,7 +1326,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
 
             {/* Side/view thumbnails */}
             {currentImages.length > 1 && (
-              <div className="mt-6 flex justify-center gap-3">
+              <div className="flex justify-center gap-3">
                 {currentImages.map((img, idx) => {
                   const hasElements = elements.some((el) =>
                     img.zones.some((z) => z.id === el.zoneId)
@@ -1376,7 +1376,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
 
             {/* Color selector (filters images by color) */}
             {currentColors.length > 0 && (
-              <div className="mt-6 flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 {currentColors.map((color) => {
                   const hasImages = allImages.some((img) => img.color_id === color.id)
                   if (!hasImages) return null
