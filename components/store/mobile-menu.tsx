@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Paintbrush, Shirt, Pencil, Menu, User, LogIn, ArrowRight, Package } from "lucide-react"
 import { UA } from "@/lib/translations"
@@ -52,11 +53,32 @@ interface MobileMenuProps {
 
 export function MobileMenu({ categories, subcategories, groups, printCategories, printSubcategories }: MobileMenuProps) {
   const { user, signOut } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <button
+        type="button"
+        aria-label={"\u041c\u0435\u043d\u044e"}
+        className="flex size-9 items-center justify-center rounded-md border"
+      >
+        <Menu className="size-5" />
+      </button>
+    )
+  }
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button className="flex size-9 items-center justify-center rounded-md border">
+        <button
+          type="button"
+          aria-label={"\u041c\u0435\u043d\u044e"}
+          className="flex size-9 items-center justify-center rounded-md border"
+        >
           <Menu className="size-5" />
         </button>
       </SheetTrigger>
