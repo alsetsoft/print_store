@@ -1090,11 +1090,20 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
         <button
           onClick={() => {
             setElements((prev) =>
-              prev.map((el) =>
-                el.id === selectedElementId
-                  ? { ...el, position: { x: 50, y: 50 }, scale: 50, flipped: false }
-                  : el
-              )
+              prev.map((el) => {
+                if (el.id !== selectedElementId) return el
+                const zone = currentImage?.zones.find((z) => z.id === el.zoneId)
+                let scale = 50
+                if (zone && imageRect) {
+                  const zw = (zone.width / 100) * imageRect.width
+                  const zh = (zone.height / 100) * imageRect.height
+                  const aspect = aspectMapRef.current[el.id] ?? 1
+                  const maxScaleByHeight = (zh / zw) * aspect * 100
+                  const maxScale = Math.min(100, maxScaleByHeight)
+                  scale = Math.max(10, Math.min(maxScale, 50))
+                }
+                return { ...el, position: { x: 50, y: 50 }, scale, flipped: false }
+              })
             )
           }}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
@@ -1372,7 +1381,23 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                           onFlip={() => toggleFlip(el.id)}
                           onDelete={() => deleteElement(el.id)}
                           onDeselect={() => setSelectedElementId(null)}
-                          onAspectRatio={(r) => { aspectMapRef.current[el.id] = r }}
+                          onAspectRatio={(r) => {
+                            aspectMapRef.current[el.id] = r
+                            // Auto-fit element so it never overflows zone bounds once we know aspect.
+                            if (!imageRect) return
+                            const z = currentImage?.zones.find((zz) => zz.id === el.zoneId)
+                            if (!z) return
+                            const zw = (z.width / 100) * imageRect.width
+                            const zh = (z.height / 100) * imageRect.height
+                            const maxScaleByHeight = (zh / zw) * r * 100
+                            const maxScale = Math.min(100, maxScaleByHeight)
+                            setElements((prev) => prev.map((e2) => {
+                              if (e2.id !== el.id) return e2
+                              if (e2.scale <= maxScale) return e2
+                              const clamped = Math.max(10, maxScale)
+                              return { ...e2, scale: clamped, position: { x: 50, y: 50 } }
+                            }))
+                          }}
                         />
                       ))}
 
