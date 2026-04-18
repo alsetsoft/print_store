@@ -48,7 +48,7 @@ export function CartDrawer() {
               <div className="flex flex-col gap-3 pb-4">
                 {items.map((item) => (
                   <div
-                    key={`${item.type}-${item.id}`}
+                    key={item.lineKey}
                     className="flex gap-3 rounded-lg border border-border bg-card p-3"
                   >
                     {/* Image */}
@@ -73,14 +73,14 @@ export function CartDrawer() {
                         {/* Quantity controls */}
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => updateQuantity(item.id, item.type, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.lineKey, item.quantity - 1)}
                             className="flex size-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                           >
                             <Minus className="size-3" />
                           </button>
                           <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.id, item.type, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.lineKey, item.quantity + 1)}
                             className="flex size-7 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                           >
                             <Plus className="size-3" />
@@ -107,7 +107,7 @@ export function CartDrawer() {
                             </button>
                           )}
                           <button
-                            onClick={() => removeItem(item.id, item.type)}
+                            onClick={() => removeItem(item.lineKey)}
                             className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="size-3.5" />

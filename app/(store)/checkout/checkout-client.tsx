@@ -472,7 +472,7 @@ export function CheckoutClient() {
 
               <div className="max-h-64 space-y-3 overflow-y-auto">
                 {items.map((item) => (
-                  <div key={`${item.type}-${item.id}`} className="flex gap-3">
+                  <div key={item.lineKey} className="flex gap-3">
                     <div className="size-12 shrink-0 overflow-hidden rounded-md bg-muted/30">
                       <CartItemPreview item={item} size={96} className="size-full" />
                     </div>

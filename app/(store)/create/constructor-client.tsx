@@ -171,8 +171,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const printParamRef = useRef(false)
 
   // Edit mode — restore state from localStorage
-  const [editCartItemId, setEditCartItemId] = useState<string | null>(null)
-  const [editCartItemType, setEditCartItemType] = useState<"custom" | null>(null)
+  const [editCartLineKey, setEditCartLineKey] = useState<string | null>(null)
   const editRestoredRef = useRef(false)
 
   // Color filter — defaults to first color that has images, or null (show all)
@@ -254,8 +253,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       if (!cartItem.constructorState) return
 
       const cs = cartItem.constructorState
-      setEditCartItemId(cartItem.id)
-      setEditCartItemType(cartItem.type)
+      setEditCartLineKey(cartItem.lineKey ?? null)
 
       // Restore base if different
       if (cs.baseId !== String(initialBase.id)) {
@@ -809,8 +807,8 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       elements: elements,
     }
 
-    if (editCartItemId && editCartItemType) {
-      updateItem(editCartItemId, editCartItemType, {
+    if (editCartLineKey) {
+      updateItem(editCartLineKey, {
         name: `${currentBase.name} \u043d\u0430 \u0437\u0430\u043c\u043e\u0432\u043b\u0435\u043d\u043d\u044f`,
         price: totalPrice,
         imageUrl: currentImage?.url ?? null,
@@ -1209,7 +1207,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       className="flex w-full items-center justify-center gap-2 text-sm font-semibold"
     >
       <ShoppingCart className="size-4" />
-      {editCartItemId
+      {editCartLineKey
         ? "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438 \u0437\u043c\u0456\u043d\u0438"
         : "\u0414\u043e\u0434\u0430\u0442\u0438 \u0432 \u043a\u043e\u0448\u0438\u043a"}
     </Button>

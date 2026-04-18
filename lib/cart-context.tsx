@@ -31,6 +31,9 @@ export interface ConstructorState {
 export interface CartItem {
   id: string
   type: CartItemType
+  // Composite per-variant key. Two items with the same product id but different
+  // color/size are different lines and must have different lineKeys.
+  lineKey: string
   name: string
   price: number | null
   imageUrl: string | null
@@ -46,14 +49,23 @@ export interface CartItem {
   constructorState?: ConstructorState
 }
 
+function makeLineKey(
+  type: CartItemType,
+  id: string,
+  colorName?: string,
+  sizeName?: string,
+): string {
+  return `${type}:${id}:${colorName ?? ""}:${sizeName ?? ""}`
+}
+
 interface CartContextValue {
   items: CartItem[]
   totalItems: number
   totalPrice: number
-  addItem: (item: Omit<CartItem, "quantity">) => void
-  removeItem: (id: string, type: CartItemType) => void
-  updateQuantity: (id: string, type: CartItemType, quantity: number) => void
-  updateItem: (id: string, type: CartItemType, updates: Partial<Omit<CartItem, "quantity">>) => void
+  addItem: (item: Omit<CartItem, "quantity" | "lineKey">) => void
+  removeItem: (lineKey: string) => void
+  updateQuantity: (lineKey: string, quantity: number) => void
+  updateItem: (lineKey: string, updates: Partial<Omit<CartItem, "quantity" | "lineKey">>) => void
   clearCart: () => void
   isOpen: boolean
   setIsOpen: (open: boolean) => void
@@ -71,7 +83,14 @@ function loadCart(): CartItem[] {
   if (typeof window === "undefined") return []
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<Partial<CartItem> & { id: string; type: CartItemType }>
+    // Backfill lineKey for carts saved before this field existed.
+    return parsed.map((i) => ({
+      ...(i as CartItem),
+      lineKey:
+        i.lineKey ?? makeLineKey(i.type, i.id, i.colorName, i.sizeName),
+    }))
   } catch {
     return []
   }
@@ -105,43 +124,50 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (hydrated) saveCart(items)
   }, [items, hydrated])
 
-  const addItem = useCallback((item: Omit<CartItem, "quantity">) => {
+  const addItem = useCallback((item: Omit<CartItem, "quantity" | "lineKey">) => {
+    const lineKey = makeLineKey(item.type, item.id, item.colorName, item.sizeName)
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === item.id && i.type === item.type)
+      const existing = prev.find((i) => i.lineKey === lineKey)
       if (existing) {
         return prev.map((i) =>
-          i.id === item.id && i.type === item.type
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
+          i.lineKey === lineKey ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
-      return [...prev, { ...item, quantity: 1 }]
+      return [...prev, { ...item, lineKey, quantity: 1 }]
     })
   }, [])
 
-  const removeItem = useCallback((id: string, type: CartItemType) => {
-    setItems((prev) => prev.filter((i) => !(i.id === id && i.type === type)))
+  const removeItem = useCallback((lineKey: string) => {
+    setItems((prev) => prev.filter((i) => i.lineKey !== lineKey))
   }, [])
 
-  const updateQuantity = useCallback((id: string, type: CartItemType, quantity: number) => {
+  const updateQuantity = useCallback((lineKey: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => !(i.id === id && i.type === type)))
+      setItems((prev) => prev.filter((i) => i.lineKey !== lineKey))
       return
     }
     setItems((prev) =>
-      prev.map((i) =>
-        i.id === id && i.type === type ? { ...i, quantity } : i
-      )
+      prev.map((i) => (i.lineKey === lineKey ? { ...i, quantity } : i))
     )
   }, [])
 
-  const updateItem = useCallback((id: string, type: CartItemType, updates: Partial<Omit<CartItem, "quantity">>) => {
-    setItems((prev) =>
-      prev.map((i) =>
-        i.id === id && i.type === type ? { ...i, ...updates } : i
+  const updateItem = useCallback(
+    (lineKey: string, updates: Partial<Omit<CartItem, "quantity" | "lineKey">>) => {
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.lineKey !== lineKey) return i
+          const next = { ...i, ...updates }
+          // If color/size changed, recompute the lineKey so the line stays unique
+          // against other variants.
+          if (updates.colorName !== undefined || updates.sizeName !== undefined) {
+            next.lineKey = makeLineKey(next.type, next.id, next.colorName, next.sizeName)
+          }
+          return next
+        })
       )
-    )
-  }, [])
+    },
+    [],
+  )
 
   const clearCart = useCallback(() => {
     setItems([])

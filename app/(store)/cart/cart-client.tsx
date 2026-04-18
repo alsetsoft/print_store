@@ -58,7 +58,7 @@ export function CartPageClient() {
           <div className="flex flex-col gap-4">
             {items.map((item) => (
               <div
-                key={`${item.type}-${item.id}`}
+                key={item.lineKey}
                 className="flex gap-4 rounded-lg border border-border bg-card p-4"
               >
                 {/* Image */}
@@ -106,7 +106,7 @@ export function CartPageClient() {
                     {/* Quantity */}
                     <div className="flex items-center gap-0">
                       <button
-                        onClick={() => updateQuantity(item.id, item.type, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.lineKey, item.quantity - 1)}
                         className="flex size-10 sm:size-8 items-center justify-center rounded-l-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                       >
                         <Minus className="size-3.5" />
@@ -119,17 +119,17 @@ export function CartPageClient() {
                           const val = e.target.value.replace(/\D/g, "")
                           if (val === "") return
                           const num = parseInt(val, 10)
-                          if (num >= 1) updateQuantity(item.id, item.type, num)
+                          if (num >= 1) updateQuantity(item.lineKey, num)
                         }}
                         onBlur={(e) => {
                           if (!e.target.value || parseInt(e.target.value, 10) < 1) {
-                            updateQuantity(item.id, item.type, 1)
+                            updateQuantity(item.lineKey, 1)
                           }
                         }}
                         className="flex h-10 w-12 sm:h-8 sm:w-10 items-center justify-center border-y border-border bg-transparent text-center text-sm font-medium outline-none"
                       />
                       <button
-                        onClick={() => updateQuantity(item.id, item.type, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.lineKey, item.quantity + 1)}
                         className="flex size-10 sm:size-8 items-center justify-center rounded-r-md border border-border text-muted-foreground transition-colors hover:bg-muted"
                       >
                         <Plus className="size-3.5" />
@@ -152,7 +152,7 @@ export function CartPageClient() {
 
                     {/* Delete */}
                     <button
-                      onClick={() => removeItem(item.id, item.type)}
+                      onClick={() => removeItem(item.lineKey)}
                       className="flex items-center gap-1 text-xs text-destructive/70 transition-colors hover:text-destructive"
                     >
                       <Trash2 className="size-3.5" />

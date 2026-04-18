@@ -57,11 +57,13 @@ export function ProductCard({ product }: ProductCardProps) {
 
       if (!printImageUrl || activeImage.zones.length === 0) return
 
-      // Render every zone on the active image that carries a placement; fall
-      // back to the first zone centered when no placements exist at all.
-      const hasAnyPlacement = Object.keys(placements).length > 0
-      const zonesToRender = hasAnyPlacement
-        ? activeImage.zones.filter((z) => placements[z.id])
+      // Render zones that have placements for *this* image. If placements were
+      // saved against a different color variant's zones (different zone_ids),
+      // fall back to centering on the first zone so the print stays visible
+      // when the user switches colors.
+      const matchingZones = activeImage.zones.filter((z) => placements[z.id])
+      const zonesToRender = matchingZones.length > 0
+        ? matchingZones
         : [activeImage.zones[0]]
 
       for (const zone of zonesToRender) {
