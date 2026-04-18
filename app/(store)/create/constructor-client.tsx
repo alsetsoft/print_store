@@ -1230,10 +1230,12 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                     img.zones.some((z) => z.id === el.zoneId)
                   )
                   const isActive = safeImgIndex === idx
-                  const maxZonePrice = img.zones.reduce(
-                    (max, z) => ((z.price ?? 0) > max ? (z.price ?? 0) : max),
-                    0
-                  )
+                  const paidZones = img.zones.filter((z) => (z.price ?? 0) > 0)
+                  const allZonesPaid =
+                    img.zones.length > 0 && paidZones.length === img.zones.length
+                  const minZonePrice = allZonesPaid
+                    ? Math.min(...paidZones.map((z) => z.price ?? 0))
+                    : 0
                   return (
                     <button
                       key={img.id}
@@ -1259,9 +1261,9 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                             <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
                           </div>
                         )}
-                        {maxZonePrice > 0 && (
+                        {minZonePrice > 0 && (
                           <span className="absolute -right-1 top-1/2 -translate-y-1/2 rounded-md bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary-foreground shadow-md">
-                            +{maxZonePrice} {"\u0433\u0440\u043d"}
+                            +{minZonePrice} {"\u0433\u0440\u043d"}
                           </span>
                         )}
                       </div>
@@ -1808,13 +1810,13 @@ function BasePickerModal({
           <ScrollArea className="flex-1">
             <div className="px-6 py-5">
               {loadingBases ? (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                  {Array.from({ length: 12 }).map((_, i) => (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
                     <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
                       <Skeleton className="aspect-square w-full rounded-none" />
-                      <div className="space-y-2 p-3">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/3" />
+                      <div className="space-y-2 p-4">
+                        <Skeleton className="h-5 w-3/4" />
+                        <Skeleton className="h-4 w-1/3" />
                       </div>
                     </div>
                   ))}
@@ -1834,7 +1836,7 @@ function BasePickerModal({
                   </EmptyHeader>
                 </Empty>
               ) : (
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
                   {bases.map((b) => {
                     const isActive = String(b.id) === currentBaseId
                     return (
@@ -1855,30 +1857,30 @@ function BasePickerModal({
                             <img
                               src={decodeLabel(b.image_url) ?? ""}
                               alt={b.name}
-                              className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+                              className="h-full w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
                             />
                           ) : (
                             <div className="flex h-full items-center justify-center">
-                              <ImagePlus className="size-8 text-muted-foreground/40" />
+                              <ImagePlus className="size-12 text-muted-foreground/40" />
                             </div>
                           )}
                           {isActive && (
-                            <Badge className="absolute right-2 top-2 rounded-full shadow-sm">
+                            <Badge className="absolute right-3 top-3 rounded-full shadow-sm">
                               <Check className="size-3" strokeWidth={3} />
                               {"\u041e\u0431\u0440\u0430\u043d\u043e"}
                             </Badge>
                           )}
                         </div>
 
-                        <div className="flex flex-1 flex-col gap-1 p-3">
+                        <div className="flex flex-1 flex-col gap-1 p-4">
                           <span className={cn(
-                            "line-clamp-2 text-sm font-medium transition-colors",
+                            "line-clamp-2 text-base font-medium transition-colors",
                             isActive ? "text-primary" : "text-card-foreground group-hover:text-primary"
                           )}>
                             {b.name}
                           </span>
                           {b.price != null && Number(b.price) > 0 && (
-                            <span className="mt-auto pt-1 text-sm font-semibold text-foreground">
+                            <span className="mt-auto pt-1 text-base font-semibold text-foreground">
                               {"\u0432\u0456\u0434 "}{b.price} {"\u0433\u0440\u043d"}
                             </span>
                           )}
