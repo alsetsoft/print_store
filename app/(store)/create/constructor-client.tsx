@@ -528,13 +528,18 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       const dx = e.clientX - resizeStartPos.x
       const dy = e.clientY - resizeStartPos.y
       const delta = isResizing === "shrink" ? -(dx + dy) / 3 : (dx + dy) / 3
-      const newScale = Math.max(10, Math.min(100, resizeStartScale + delta))
       const el = elementsRef.current.find((el) => el.id === elId)
       const zone = el ? currentImage?.zones.find((z) => z.id === el.zoneId) : null
       if (zone && imageRect) {
         const zw = (zone.width / 100) * imageRect.width
         const zh = (zone.height / 100) * imageRect.height
         const aspect = aspectMapRef.current[elId] ?? 1
+        // Cap scale so the element never overflows the zone (width OR height).
+        // scale is element width as % of zone width; element height in zone% =
+        // (scale/100 * zw / aspect) / zh * 100. Solve for "height = 100" → max.
+        const maxScaleByHeight = (zh / zw) * aspect * 100
+        const maxScale = Math.min(100, maxScaleByHeight)
+        const newScale = Math.max(10, Math.min(maxScale, resizeStartScale + delta))
         const halfX = newScale / 2
         const halfY = (newScale / 100 * zw / aspect) / zh * 50
         setElements((prev) =>
@@ -545,6 +550,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           })
         )
       } else {
+        const newScale = Math.max(10, Math.min(100, resizeStartScale + delta))
         setElements((prev) =>
           prev.map((el) => el.id === elId ? { ...el, scale: newScale } : el)
         )
