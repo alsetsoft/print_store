@@ -28,7 +28,6 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty"
-import { useIsMobile } from "@/hooks/use-mobile"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,7 +211,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [activeTab, setActiveTab] = useState<ElementType>("image")
 
   // Mobile
-  const isMobile = useIsMobile()
   const [viewsOpen, setViewsOpen] = useState(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [zonesDrawerOpen, setZonesDrawerOpen] = useState(false)
@@ -879,7 +877,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
             onValueChange={(id) => {
               setSelectedZoneId(id)
               setSelectedElementId(null)
-              if (isMobile) setZonesDrawerOpen(false)
+              setZonesDrawerOpen(false)
             }}
             className="gap-2"
           >
@@ -1233,7 +1231,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       {/* ----------------------------------------------------------------- */}
       {/* LEFT — Preview (canvas + thumbs + colors)                          */}
       {/* ----------------------------------------------------------------- */}
-      <div className={cn("order-1 flex flex-1 flex-col items-center justify-center gap-4 bg-muted/20 p-3 sm:p-4 lg:order-1 lg:gap-6 lg:p-6", isMobile && "pb-20")}>
+      <div className="order-1 flex flex-1 flex-col items-center justify-center gap-4 bg-muted/20 p-3 pb-20 sm:p-4 sm:pb-20 lg:order-1 lg:gap-6 lg:p-6 lg:pb-6">
         {currentImage ? (
           <>
           <div className="flex w-full flex-col items-center justify-center gap-4 lg:flex-row lg:items-center lg:gap-6">
@@ -1498,12 +1496,13 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       </aside>
 
       {/* ----------------------------------------------------------------- */}
-      {/* MOBILE — Floating bottom toolbar + Drawers                         */}
+      {/* MOBILE / TABLET — Floating bottom toolbar + Drawers                */}
+      {/* CSS-gated by `lg:hidden` so the toolbar shows on every viewport    */}
+      {/* below the desktop aside breakpoint (lg = 1024px).                  */}
       {/* ----------------------------------------------------------------- */}
-      {isMobile && (
-        <>
+      <div className="lg:hidden">
           {/* Floating toolbar */}
-          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 border-t-2 border-primary/30 bg-white p-2.5 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.12)] lg:hidden">
+          <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-2 border-t-2 border-primary/30 bg-card p-2.5 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.12)]">
             <button
               onClick={() => setZonesDrawerOpen(true)}
               className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground"
@@ -1587,8 +1586,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               </ScrollArea>
             </DrawerContent>
           </Drawer>
-        </>
-      )}
+      </div>
 
       {/* Base picker modal */}
       <BasePickerModal
@@ -1841,7 +1839,7 @@ function BasePickerModal({
           <ScrollArea className="flex-1">
             <div className="px-6 py-5">
               {loadingBases ? (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 sm:gap-5 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
                   {Array.from({ length: 8 }).map((_, i) => (
                     <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
                       <Skeleton className="aspect-square w-full rounded-none" />
@@ -1867,7 +1865,7 @@ function BasePickerModal({
                   </EmptyHeader>
                 </Empty>
               ) : (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 sm:gap-5 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4">
                   {bases.map((b) => {
                     const isActive = String(b.id) === currentBaseId
                     return (
