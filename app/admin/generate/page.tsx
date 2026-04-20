@@ -22,7 +22,7 @@ import {
 
 interface Base extends CompositeBase {
   description: string | null
-  sku: string | null
+  article: string | null
   price: number | null
   image_url: string | null
   base_categories: { name: string } | null
@@ -609,7 +609,7 @@ export default function GeneratePage() {
     const [{ data: basesData }, { data: printsData }] = await Promise.all([
       supabase
         .from("bases")
-        .select(`id, name, description, sku, price, image_url, base_categories:base_category_id(name), base_colors(color_id, colors:color_id(id, name, hex_code)), base_images(id, url, color_id, sort_order)`)
+        .select(`id, name, description, price, image_url, base_categories:base_category_id(name), articles:article_id(name), base_colors(color_id, colors:color_id(id, name, hex_code)), base_images(id, url, color_id, sort_order)`)
         .order("name"),
       supabase
         .from("print_designs")
@@ -659,7 +659,7 @@ export default function GeneratePage() {
           id: String(b.id),
           name: b.name,
           description: (b as Record<string, unknown>).description as string | null ?? null,
-          sku: b.sku,
+          article: (b.articles as unknown as { name: string } | null)?.name ?? null,
           price: b.price as number | null,
           image_url: b.image_url,
           images,
@@ -699,7 +699,7 @@ export default function GeneratePage() {
 
   const filteredBases = bases.filter((b) =>
     b.name.toLowerCase().includes(baseSearch.toLowerCase()) ||
-    (b.sku ?? "").toLowerCase().includes(baseSearch.toLowerCase())
+    (b.article ?? "").toLowerCase().includes(baseSearch.toLowerCase())
   )
 
   const filteredPrints = prints.filter((p) =>
@@ -959,7 +959,7 @@ export default function GeneratePage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-foreground">{base.name}</p>
-                    <p className="text-xs text-muted-foreground">{base.sku || base.base_categories?.name || "\u2014"}</p>
+                    <p className="text-xs text-muted-foreground">{base.article || base.base_categories?.name || "\u2014"}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {isSelected && hasZones && (

@@ -12,7 +12,8 @@ interface Base {
   name: string
   description: string | null
   price: number | null
-  sku: string | null
+  article_id: number | null
+  articles: { id: number; name: string } | null
   image_url: string | null
   base_categories: { id: number; name: string } | null
   base_subcategories: { id: number; name: string } | null
@@ -25,10 +26,11 @@ interface BasesTableProps {
   subcategories: { id: number; name: string; base_category_id: number }[]
   colors: { id: number; name: string; hex_code: string | null }[]
   sizes: { id: number; name: string; sort_order: number | null }[]
+  articles: { id: number; name: string }[]
   onSuccess?: () => void
 }
 
-export function BasesTable({ bases, categories, subcategories, colors, sizes, onSuccess }: BasesTableProps) {
+export function BasesTable({ bases, categories, subcategories, colors, sizes, articles, onSuccess }: BasesTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [editingBase, setEditingBase] = useState<Base | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -36,7 +38,7 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
   const filteredBases = bases.filter((base) =>
     base.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     base.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    base.sku?.toLowerCase().includes(searchQuery.toLowerCase())
+    base.articles?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const handleDelete = async () => {
@@ -128,8 +130,8 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
                     <p className="text-sm font-medium text-foreground">
                       {base.price ? `${base.price} ₴` : "—"}
                     </p>
-                    {base.sku && (
-                      <p className="font-mono text-xs text-muted-foreground">{base.sku}</p>
+                    {base.articles?.name && (
+                      <p className="font-mono text-xs text-muted-foreground">{base.articles.name}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
@@ -162,7 +164,7 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
               <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"Назва"}</th>
               <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"Категорія"}</th>
               <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"Колір"}</th>
-              <th className="px-6 py-3 font-medium">SKU</th>
+              <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"\u0410\u0440\u0442\u0438\u043A\u0443\u043B"}</th>
               <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"Ціна"}</th>
               <th className="px-6 py-3 font-medium" suppressHydrationWarning>{"Дії"}</th>
             </tr>
@@ -244,7 +246,7 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <span className="font-mono text-sm text-muted-foreground">{base.sku || "—"}</span>
+                    <span className="font-mono text-sm text-muted-foreground">{base.articles?.name || "—"}</span>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-medium text-foreground">
@@ -283,6 +285,7 @@ export function BasesTable({ bases, categories, subcategories, colors, sizes, on
           subcategories={subcategories}
           colors={colors}
           sizes={sizes}
+          articles={articles}
           onSuccess={onSuccess}
         />
       )}

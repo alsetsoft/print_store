@@ -11,7 +11,8 @@ interface Base {
   name: string
   description: string | null
   price: number | null
-  sku: string | null
+  article_id: number | null
+  articles: { id: number; name: string } | null
   image_url: string | null
   base_categories: { id: number; name: string } | null
   base_subcategories: { id: number; name: string } | null
@@ -24,6 +25,7 @@ interface PageData {
   subcategories: { id: number; name: string; base_category_id: number }[]
   colors: { id: number; name: string; hex_code: string | null }[]
   sizes: { id: number; name: string; sort_order: number | null }[]
+  articles: { id: number; name: string }[]
 }
 
 export default function BasesPage() {
@@ -38,6 +40,7 @@ export default function BasesPage() {
       { data: subcategories },
       { data: colors },
       { data: sizes },
+      { data: articles },
     ] = await Promise.all([
       supabase
         .from("bases")
@@ -45,13 +48,15 @@ export default function BasesPage() {
           *,
           base_categories:base_category_id(id, name),
           base_subcategories:base_subcategory_id(id, name),
-          base_colors(color_id, colors:color_id(id, name, hex_code))
+          base_colors(color_id, colors:color_id(id, name, hex_code)),
+          articles:article_id(id, name)
         `)
         .order("created_at", { ascending: false }),
       supabase.from("base_categories").select("id, name").order("name"),
       supabase.from("base_subcategories").select("id, name, base_category_id").order("name"),
       supabase.from("colors").select("id, name, hex_code").order("name"),
       supabase.from("sizes").select("id, name, sort_order").order("sort_order"),
+      supabase.from("articles").select("id, name").order("name"),
     ])
 
     setData({
@@ -60,6 +65,7 @@ export default function BasesPage() {
       subcategories: subcategories || [],
       colors: colors || [],
       sizes: sizes || [],
+      articles: articles || [],
     })
   }, [])
 
@@ -76,6 +82,7 @@ export default function BasesPage() {
         subcategories={data?.subcategories ?? []}
         colors={data?.colors ?? []}
         sizes={data?.sizes ?? []}
+        articles={data?.articles ?? []}
         onSuccess={fetchData}
       />
 
@@ -96,6 +103,7 @@ export default function BasesPage() {
             subcategories={data.subcategories}
             colors={data.colors}
             sizes={data.sizes}
+            articles={data.articles}
             onSuccess={fetchData}
           />
         )}

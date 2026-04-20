@@ -14,6 +14,7 @@ interface BaseFormDialogProps {
   subcategories?: { id: number; name: string; base_category_id: number }[]
   colors?: { id: number; name: string; hex_code: string | null }[]
   sizes?: { id: number; name: string; sort_order: number | null }[]
+  articles?: { id: number; name: string }[]
   onSuccess?: () => void
 }
 
@@ -33,7 +34,7 @@ interface Subcategory {
   base_category_id: number
 }
 
-export function BaseFormDialog({ open, onOpenChange, item, categories, subcategories: subcategoriesProp, colors: colorsProp, sizes: sizesProp, onSuccess }: BaseFormDialogProps) {
+export function BaseFormDialog({ open, onOpenChange, item, categories, subcategories: subcategoriesProp, colors: colorsProp, sizes: sizesProp, articles: articlesProp = [], onSuccess }: BaseFormDialogProps) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [categoryId, setCategoryId] = useState("")
@@ -41,7 +42,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
   const [price, setPrice] = useState("")
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([])
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([])
-  const [sku, setSku] = useState("")
+  const [articleId, setArticleId] = useState("")
   // Images organized by color: colorId -> array of images
   const [imagesByColor, setImagesByColor] = useState<Record<number, UploadedImage[]>>({})
   const [activeColorTab, setActiveColorTab] = useState<number | null>(null)
@@ -113,7 +114,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       setCategoryId(item.base_category_id?.toString() || "")
       setSubcategoryId(item.base_subcategory_id?.toString() || "")
       setPrice(item.price?.toString() || "")
-      setSku((item.sku as string) || "")
+      setArticleId(item.article_id?.toString() || "")
       // Load colors from base_colors junction table
       const loadColors = async () => {
         const { data } = await supabase
@@ -206,7 +207,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       setPrice("")
       setSelectedColorIds([])
       setSelectedSizeIds([])
-      setSku("")
+      setArticleId("")
       setImagesByColor({})
       setActiveColorTab(null)
     }
@@ -397,7 +398,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
     if (!subcategoryId) errs.subcategoryId = "Оберіть підкатегорію"
     if (colorsProp && colorsProp.length > 0 && selectedColorIds.length === 0) errs.colorId = "Оберіть хоча б один колір"
     if (sizesProp && sizesProp.length > 0 && selectedSizeIds.length === 0) errs.sizeIds = "Оберіть хоча б один розмір"
-    if (!sku.trim()) errs.sku = "SKU обовязковий"
+    if (!articleId) errs.articleId = "\u041E\u0431\u0435\u0440\u0456\u0442\u044C \u0430\u0440\u0442\u0438\u043A\u0443\u043B"
     if (!price || parseFloat(price) < 0) errs.price = "Введіть коректну ціну"
     // Check primary color has at least one image with zones
     const primary = selectedColorIds[0]
@@ -458,7 +459,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       formData.append("price", price)
       formData.append("color_ids", JSON.stringify(selectedColorIds))
       formData.append("size_ids", JSON.stringify(selectedSizeIds))
-      formData.append("sku", sku.trim())
+      formData.append("article_id", articleId)
       formData.append("images_with_zones", JSON.stringify(imagesWithZones))
       if (item) {
         formData.append("id", item.id as string)
@@ -657,16 +658,19 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">
-                  SKU <span className="text-destructive">*</span>
+                  {"\u0410\u0440\u0442\u0438\u043A\u0443\u043B"} <span className="text-destructive">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={sku}
-                  onChange={(e) => setSku(e.target.value)}
-                  placeholder="Наприклад: GLD-64000-WH"
-                  className={`w-full rounded-lg border px-4 py-2.5 text-sm bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 ${errors.sku ? "border-destructive focus:border-destructive focus:ring-destructive" : "border-input focus:border-primary focus:ring-primary"}`}
-                />
-                {errors.sku && <p className="mt-1 text-xs text-destructive">{errors.sku}</p>}
+                <select
+                  value={articleId}
+                  onChange={(e) => setArticleId(e.target.value)}
+                  className={`w-full rounded-lg border px-4 py-2.5 text-sm bg-background focus:outline-none focus:ring-1 ${errors.articleId ? "border-destructive focus:border-destructive focus:ring-destructive" : "border-input focus:border-primary focus:ring-primary"}`}
+                >
+                  <option value="">{"\u041E\u0431\u0435\u0440\u0456\u0442\u044C \u0430\u0440\u0442\u0438\u043A\u0443\u043B"}</option>
+                  {articlesProp.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+                {errors.articleId && <p className="mt-1 text-xs text-destructive">{errors.articleId}</p>}
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-foreground">

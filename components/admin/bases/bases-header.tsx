@@ -10,10 +10,11 @@ interface BasesHeaderProps {
   subcategories: { id: number; name: string; base_category_id: number }[]
   colors: { id: number; name: string; hex_code: string | null }[]
   sizes: { id: number; name: string; sort_order: number | null }[]
+  articles: { id: number; name: string }[]
   onSuccess?: () => void
 }
 
-export function BasesHeader({ totalCount, categories, subcategories, colors, sizes, onSuccess }: BasesHeaderProps) {
+export function BasesHeader({ totalCount, categories, subcategories, colors, sizes, articles, onSuccess }: BasesHeaderProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   return (
@@ -43,6 +44,7 @@ export function BasesHeader({ totalCount, categories, subcategories, colors, siz
         subcategories={subcategories}
         colors={colors}
         sizes={sizes}
+        articles={articles}
         onSuccess={onSuccess}
       />
     </>

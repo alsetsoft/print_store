@@ -20,6 +20,7 @@ const typeLabels: Record<string, string> = {
   colors: "колір",
   sizes: "розмір",
   areas: "зону друку",
+  articles: "\u0430\u0440\u0442\u0438\u043A\u0443\u043B",
   base_categories: "категорію основ",
   base_subcategories: "підкатегорію основ",
   print_categories: "категорію принтів",
@@ -53,6 +54,7 @@ export function ParameterFormDialog({
   const isSubcategory = type === "base_subcategories"
   const isPrintSubcategory = type === "print_subcategories"
   const isArea = type === "areas"
+  const isArticle = type === "articles"
 
   useEffect(() => {
     if (item) {
@@ -323,7 +325,7 @@ export function ParameterFormDialog({
             </div>
           )}
 
-          {(isCategory || isArea) && (
+          {(isCategory || isArea || isArticle) && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">
                 {"Опис"}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Palette, Ruler, FolderOpen, Plus, Trash2, Pencil, Loader2 } from "lucide-react"
+import { Palette, Ruler, FolderOpen, Plus, Trash2, Pencil, Loader2, Tag } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ParameterFormDialog } from "./parameter-form-dialog"
 import { deleteMaterial } from "@/app/admin/parameters/actions"
@@ -16,6 +16,7 @@ type BaseCategoryRow = { id: number; name: string; description: string | null }
 type BaseSubcategoryRow = { id: number; name: string; base_category_id: number; description: string | null; base_categories?: { name: string } | null }
 type PrintCategoryRow = { id: number; name: string; description: string | null }
 type PrintSubcategoryRow = { id: number; name: string; print_category_id: number }
+type ArticleRow = { id: number; name: string; description: string | null }
 
 type TabData =
   | ColorRow[]
@@ -25,10 +26,12 @@ type TabData =
   | BaseSubcategoryRow[]
   | PrintCategoryRow[]
   | PrintSubcategoryRow[]
+  | ArticleRow[]
 
 const tabs = [
   { id: "colors", label: "Кольори", icon: Palette },
   { id: "sizes", label: "Розміри", icon: Ruler },
+  { id: "articles", label: "\u0410\u0440\u0442\u0438\u043A\u0443\u043B\u0438", icon: Tag },
   { id: "base_categories", label: "Категорії основ", icon: FolderOpen },
   { id: "base_subcategories", label: "Підкатегорії основ", icon: FolderOpen },
   { id: "print_categories", label: "Категорії принтів", icon: FolderOpen },
@@ -68,6 +71,10 @@ async function fetchTab(tabId: string): Promise<TabData> {
     case "print_subcategories": {
       const { data } = await supabase.from("print_subcategories").select("*").order("name")
       return (data || []) as PrintSubcategoryRow[]
+    }
+    case "articles": {
+      const { data } = await supabase.from("articles").select("*").order("name")
+      return (data || []) as ArticleRow[]
     }
     default:
       return []

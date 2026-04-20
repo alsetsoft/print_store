@@ -5,6 +5,7 @@ const tableMap: Record<string, string> = {
   colors: "colors",
   sizes: "sizes",
   areas: "areas",
+  articles: "articles",
   base_categories: "base_categories",
   base_subcategories: "base_subcategories",
   print_categories: "print_categories",
@@ -41,7 +42,7 @@ export async function createBase(formData: FormData) {
   const categoryId = formData.get("category_id") as string
   const subcategoryId = formData.get("subcategory_id") as string
   const price = formData.get("price") as string
-  const sku = formData.get("sku") as string
+  const articleId = formData.get("article_id") as string
   const colorIdsRaw = formData.get("color_ids") as string
   const colorIds: number[] = colorIdsRaw ? JSON.parse(colorIdsRaw) : []
   const sizeIdsRaw = formData.get("size_ids") as string
@@ -57,7 +58,7 @@ export async function createBase(formData: FormData) {
       base_category_id: categoryId ? parseInt(categoryId) : null,
       base_subcategory_id: subcategoryId ? parseInt(subcategoryId) : null,
       price: price ? parseFloat(price) : 0,
-      sku,
+      article_id: articleId ? parseInt(articleId) : null,
       image_url: imagesWithZones[0]?.url || null,
     })
     .select("id")
@@ -122,7 +123,7 @@ export async function updateBase(formData: FormData) {
   const categoryId = formData.get("category_id") as string
   const subcategoryId = formData.get("subcategory_id") as string
   const price = formData.get("price") as string
-  const sku = formData.get("sku") as string
+  const articleId = formData.get("article_id") as string
   const colorIdsRaw = formData.get("color_ids") as string
   const colorIds: number[] = colorIdsRaw ? JSON.parse(colorIdsRaw) : []
   const sizeIdsRaw = formData.get("size_ids") as string
@@ -138,7 +139,7 @@ export async function updateBase(formData: FormData) {
       base_category_id: categoryId ? parseInt(categoryId) : null,
       base_subcategory_id: subcategoryId ? parseInt(subcategoryId) : null,
       price: price ? parseFloat(price) : 0,
-      sku,
+      article_id: articleId ? parseInt(articleId) : null,
       image_url: imagesWithZones[0]?.url || null,
     })
     .eq("id", id)
@@ -210,7 +211,7 @@ export async function createMaterial(type: string, formData: FormData) {
     const sortOrder = formData.get("sort_order") as string
     data.sort_order = sortOrder ? parseInt(sortOrder) : null
   }
-  if (type === "areas" || type === "base_categories" || type === "print_categories") {
+  if (type === "areas" || type === "base_categories" || type === "print_categories" || type === "articles") {
     data.description = formData.get("description") || null
   }
   if (type === "base_subcategories") {
@@ -241,7 +242,7 @@ export async function updateMaterial(type: string, formData: FormData) {
     const sortOrder = formData.get("sort_order") as string
     data.sort_order = sortOrder ? parseInt(sortOrder) : null
   }
-  if (type === "areas" || type === "base_categories" || type === "print_categories") {
+  if (type === "areas" || type === "base_categories" || type === "print_categories" || type === "articles") {
     data.description = formData.get("description") || null
   }
   if (type === "base_subcategories") {
