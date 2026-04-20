@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Paintbrush, Shirt, Pencil, Menu, User, LogIn, ArrowRight, Package } from "lucide-react"
+import { Paintbrush, Shirt, Pencil, Menu, User, LogIn, ArrowRight, Package, Ruler } from "lucide-react"
 import { UA } from "@/lib/translations"
 import { useAuth } from "@/lib/auth-context"
 import { GlobalSearch } from "./global-search"
@@ -135,6 +135,19 @@ export function MobileMenu({ categories, subcategories, groups, printCategories,
                 <Shirt className="size-4" />
               </div>
               {UA.store.bases}
+              <ArrowRight className="ml-auto size-4 text-muted-foreground" />
+            </Link>
+          </SheetClose>
+
+          <SheetClose asChild>
+            <Link
+              href="/size-guide"
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-accent active:bg-accent"
+            >
+              <div className="flex size-9 items-center justify-center rounded-lg bg-accent text-primary">
+                <Ruler className="size-4" />
+              </div>
+              {UA.store.sizeGuide}
               <ArrowRight className="ml-auto size-4 text-muted-foreground" />
             </Link>
           </SheetClose>

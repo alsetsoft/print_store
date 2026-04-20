@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Shirt, Pencil } from "lucide-react"
+import { Shirt, Pencil, Ruler } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { UA } from "@/lib/translations"
 import { CatalogMenu } from "./catalog-menu"
@@ -56,6 +56,13 @@ export async function SiteHeader() {
           >
             <Shirt className="size-4" />
             {UA.store.bases}
+          </Link>
+          <Link
+            href="/size-guide"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
+          >
+            <Ruler className="size-4" />
+            {UA.store.sizeGuide}
           </Link>
           <Link
             href="/create"
