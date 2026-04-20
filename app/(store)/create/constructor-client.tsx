@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import {
   ImagePlus, Type, QrCode, Paintbrush, Sparkles,
-  ZoomIn, ZoomOut, FlipHorizontal2, Trash2,
+  FlipHorizontal2, Trash2,
   Maximize2, Minimize2, X,
   Upload, AlignLeft, AlignCenter, AlignRight,
-  RotateCcw, Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown, Loader2,
+  Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown, Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import QRCode from "qrcode"
@@ -105,6 +105,8 @@ export interface CanvasElement {
   textColor?: string
   fontFamily?: string
   textAlign?: "left" | "center" | "right"
+  label?: string
+  aiPrompt?: string
 }
 
 interface SizeData {
@@ -303,7 +305,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
       .single()
       .then(({ data }) => {
         if (data?.image_url) {
-          addElement({ type: "print", imageUrl: data.image_url })
+          addElement({ type: "print", imageUrl: data.image_url, label: data.name })
         }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -641,7 +643,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      addElement({ type: "image", imageUrl: reader.result as string })
+      addElement({ type: "image", imageUrl: reader.result as string, label: file.name })
     }
     reader.readAsDataURL(file)
     e.target.value = ""
@@ -649,7 +651,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
 
   const handleAddPrint = useCallback((p: PrintData) => {
     if (!p.image_url) return
-    addElement({ type: "print", imageUrl: p.image_url })
+    addElement({ type: "print", imageUrl: p.image_url, label: p.name })
   }, [addElement])
 
   const handleAddText = useCallback(() => {
@@ -700,8 +702,8 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     }
   }, [qrInput, addElement])
 
-  const handleAddAiImage = useCallback((imageUrl: string) => {
-    addElement({ type: "image", imageUrl })
+  const handleAddAiImage = useCallback((imageUrl: string, prompt: string) => {
+    addElement({ type: "ai", imageUrl, aiPrompt: prompt, label: prompt })
   }, [addElement])
 
   const deleteElement = useCallback((id: string) => {
@@ -761,7 +763,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
             const zw = (zone.width / 100) * rw
             const zh = (zone.height / 100) * rh
 
-            if ((el.type === "image" || el.type === "print" || el.type === "qr") && el.imageUrl) {
+            if ((el.type === "image" || el.type === "print" || el.type === "qr" || el.type === "ai") && el.imageUrl) {
               try {
                 const elImg = await loadImage(el.imageUrl)
                 const elRatio = elImg.naturalWidth / elImg.naturalHeight
@@ -957,14 +959,18 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           </RadioGroup>
         )}
 
-        {elements.length > 0 && (
-          <div className="mt-1 rounded-lg border border-border bg-background p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Layers className="h-3.5 w-3.5" />
-              {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
-            </p>
-            <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
-              {elements.map((el) => (
+        <div className="mt-1 rounded-lg border border-border bg-background p-3">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Layers className="h-3.5 w-3.5" />
+            {"\u0415\u043b\u0435\u043c\u0435\u043d\u0442\u0438"} ({elements.length})
+          </p>
+          <div className="flex h-28 flex-col gap-1 overflow-y-auto">
+            {elements.length === 0 ? (
+              <p className="m-auto text-xs text-muted-foreground">
+                {"\u041f\u043e\u043a\u0438 \u043d\u0456\u0447\u043e\u0433\u043e \u043d\u0435 \u0434\u043e\u0434\u0430\u043d\u043e"}
+              </p>
+            ) : (
+              elements.map((el) => (
                 <div
                   key={el.id}
                   onClick={() => setSelectedElementId(el.id)}
@@ -976,10 +982,15 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                   )}
                 >
                   <span className="truncate">
-                    {el.type === "image" ? "\u041c\u0430\u043b\u044e\u043d\u043e\u043a"
-                      : el.type === "print" ? "\u041f\u0440\u0438\u043d\u0442"
-                      : el.type === "text" ? `"${el.text?.slice(0, 15)}..."`
-                      : "QR"}
+                    {el.type === "text"
+                      ? (el.text || "")
+                      : el.type === "ai"
+                      ? `AI: ${el.aiPrompt || el.label || ""}`
+                      : el.type === "qr"
+                      ? `QR: ${el.text || ""}`
+                      : el.type === "print"
+                      ? (el.label || "\u041f\u0440\u0438\u043d\u0442")
+                      : (el.label || "\u041c\u0430\u043b\u044e\u043d\u043e\u043a")}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteElement(el.id) }}
@@ -989,10 +1000,10 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
-        )}
+        </div>
       </div>
     )
   }
@@ -1055,101 +1066,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
         {activeTab === "ai" && (
           <AiTab onAdd={handleAddAiImage} />
         )}
-      </div>
-    </div>
-  )
-
-  const renderSelectedElementControls = () => selectedElement && (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {"\u041d\u0430\u043b\u0430\u0448\u0442\u0443\u0432\u0430\u043d\u043d\u044f \u0435\u043b\u0435\u043c\u0435\u043d\u0442\u0443"}
-      </p>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => {
-            setElements((prev) =>
-              prev.map((el) =>
-                el.id === selectedElementId
-                  ? { ...el, scale: Math.max(10, el.scale - 10) }
-                  : el
-              )
-            )
-          }}
-          className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
-        >
-          <ZoomOut className="h-3.5 w-3.5" />
-        </button>
-        <input
-          type="range"
-          min={10}
-          max={100}
-          value={selectedElement.scale}
-          onChange={(e) => {
-            const val = Number(e.target.value)
-            setElements((prev) =>
-              prev.map((el) => el.id === selectedElementId ? { ...el, scale: val } : el)
-            )
-          }}
-          className="flex-1 accent-primary"
-        />
-        <button
-          onClick={() => {
-            setElements((prev) =>
-              prev.map((el) =>
-                el.id === selectedElementId
-                  ? { ...el, scale: Math.min(100, el.scale + 10) }
-                  : el
-              )
-            )
-          }}
-          className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted"
-        >
-          <ZoomIn className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          onClick={() => toggleFlip(selectedElement.id)}
-          className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition-all",
-            selectedElement.flipped
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <FlipHorizontal2 className="h-3.5 w-3.5" />
-          {"\u0414\u0437\u0435\u0440\u043a\u0430\u043b\u043e"}
-        </button>
-        <button
-          onClick={() => {
-            setElements((prev) =>
-              prev.map((el) => {
-                if (el.id !== selectedElementId) return el
-                const zone = currentImage?.zones.find((z) => z.id === el.zoneId)
-                let scale = 50
-                if (zone && imageRect) {
-                  const zw = (zone.width / 100) * imageRect.width
-                  const zh = (zone.height / 100) * imageRect.height
-                  const aspect = aspectMapRef.current[el.id] ?? 1
-                  const maxScaleByHeight = (zh / zw) * aspect * 100
-                  const maxScale = Math.min(100, maxScaleByHeight)
-                  scale = Math.max(10, Math.min(maxScale, 50))
-                }
-                return { ...el, position: { x: 50, y: 50 }, scale, flipped: false }
-              })
-            )
-          }}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          {"\u0421\u043a\u0438\u043d\u0443\u0442\u0438"}
-        </button>
-        <button
-          onClick={() => deleteElement(selectedElement.id)}
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-destructive/30 px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
       </div>
     </div>
   )
@@ -1518,7 +1434,6 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
         <div className="flex-1 overflow-y-auto p-5">
           <div className="flex flex-col gap-5">
             {renderCatalogContent()}
-            {selectedElement && renderSelectedElementControls()}
             <Separator />
             {renderZonesContent()}
             <Separator />
@@ -1991,7 +1906,7 @@ function CanvasElementView({
   onDeselect: () => void
   onAspectRatio?: (ratio: number) => void
 }) {
-  const isImageLike = element.type === "image" || element.type === "print" || element.type === "qr"
+  const isImageLike = element.type === "image" || element.type === "print" || element.type === "qr" || element.type === "ai"
   const [aspect, setAspect] = useState(1)
 
   return (
@@ -2433,7 +2348,7 @@ function QrPreview({ value }: { value: string }) {
   return <img src={src} alt="QR" className="mx-auto h-32 w-32 rounded-lg" />
 }
 
-function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
+function AiTab({ onAdd }: { onAdd: (imageUrl: string, prompt: string) => void }) {
   const [prompt, setPrompt] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -2512,7 +2427,7 @@ function AiTab({ onAdd }: { onAdd: (imageUrl: string) => void }) {
             />
           </div>
           <button
-            onClick={() => onAdd(previewUrl)}
+            onClick={() => onAdd(previewUrl, prompt.trim())}
             className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 flex items-center justify-center gap-2"
           >
             <Check className="h-4 w-4" />
