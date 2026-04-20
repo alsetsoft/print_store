@@ -21,6 +21,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -837,11 +844,14 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     currentImage?.zones.some((z) => z.id === el.zoneId)
   )
 
-  // Compute total price: base/size price + zone prices for zones with elements
-  const usedZoneIds = new Set(elements.map((el) => el.zoneId))
+  // Selecting a paid zone should surface the surcharge immediately — it
+  // matches the "+N грн" hint in the zone picker. currentZone already falls
+  // back to the first zone when nothing is explicitly selected.
+  const chargeableZoneIds = new Set<string>(elements.map((el) => el.zoneId))
+  if (currentZone?.id) chargeableZoneIds.add(currentZone.id)
   const zonesPrice = allImages
     .flatMap((img) => img.zones)
-    .filter((z) => usedZoneIds.has(z.id) && z.price != null && z.price > 0)
+    .filter((z) => chargeableZoneIds.has(z.id) && z.price != null && z.price > 0)
     .reduce((sum, z) => sum + z.price!, 0)
   const basePrice = (() => {
     const selectedSize = currentSizes.find((s) => s.id === selectedSizeId)
@@ -858,8 +868,18 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   })
 
   // Shared zone picker — rendered in right panel (desktop) and zones drawer (mobile)
-  const renderZonesContent = () => {
+  const renderZonesContent = (variant: "select" | "list" = "select") => {
     const activeZoneId = selectedZoneId ?? currentImage?.zones[0]?.id ?? null
+    const zoneLabel = (z: ZoneData, idx: number) => z.name || `\u0417\u043e\u043d\u0430 ${idx + 1}`
+    const zoneSize = (z: ZoneData) => {
+      const area = z.width * z.height
+      return area < 500 ? "S" : area < 1500 ? "M" : area < 3000 ? "L" : "XL"
+    }
+    const handleZoneChange = (id: string) => {
+      setSelectedZoneId(id)
+      setSelectedElementId(null)
+      setZonesDrawerOpen(false)
+    }
     return (
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -869,20 +889,40 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
           <p className="text-sm text-muted-foreground">
             {"\u0417\u043e\u043d\u0438 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0456"}
           </p>
+        ) : variant === "select" ? (
+          <Select
+            value={activeZoneId ?? undefined}
+            onValueChange={handleZoneChange}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={"\u041e\u0431\u0435\u0440\u0456\u0442\u044c \u0437\u043e\u043d\u0443"} />
+            </SelectTrigger>
+            <SelectContent>
+              {sortedZones.map((z, idx) => (
+                <SelectItem key={z.id} value={z.id}>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-semibold text-muted-foreground">
+                      {zoneSize(z)}
+                    </span>
+                    <span className="font-medium">{zoneLabel(z, idx)}</span>
+                    {z.price != null && z.price > 0 && (
+                      <span className="text-sm font-semibold text-primary">
+                        +{z.price} {"\u0433\u0440\u043d"}
+                      </span>
+                    )}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <RadioGroup
             value={activeZoneId ?? undefined}
-            onValueChange={(id) => {
-              setSelectedZoneId(id)
-              setSelectedElementId(null)
-              setZonesDrawerOpen(false)
-            }}
+            onValueChange={handleZoneChange}
             className="gap-2"
           >
             {sortedZones.map((z, idx) => {
               const active = activeZoneId === z.id
-              const area = z.width * z.height
-              const sizeLabel = area < 500 ? "S" : area < 1500 ? "M" : area < 3000 ? "L" : "XL"
               return (
                 <label
                   key={z.id}
@@ -899,14 +939,11 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold",
                     active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}>
-                    {sizeLabel}
+                    {zoneSize(z)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {z.name || `\u0417\u043e\u043d\u0430 ${idx + 1}`}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.round(z.width)}&times;{Math.round(z.height)}%
+                      {zoneLabel(z, idx)}
                     </p>
                   </div>
                   {z.price != null && z.price > 0 && (
@@ -1183,15 +1220,17 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
         <span>{"\u041e\u0441\u043d\u043e\u0432\u0430"}</span>
         <span className="text-foreground">{basePrice} {"\u0433\u0440\u043d"}</span>
       </div>
-      {zonesPrice > 0 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            {"\u0417\u043e\u043d\u0430"}
-            {currentZone?.name ? ` (${currentZone.name})` : ""}
-          </span>
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <span>
+          {"\u0417\u043e\u043d\u0430"}
+          {currentZone?.name ? ` (${currentZone.name})` : ""}
+        </span>
+        {zonesPrice > 0 ? (
           <span className="text-primary">+{zonesPrice} {"\u0433\u0440\u043d"}</span>
-        </div>
-      )}
+        ) : (
+          <span className="text-muted-foreground">0 {"\u0433\u0440\u043d"}</span>
+        )}
+      </div>
       <Separator className="my-1" />
       <div className="flex items-center justify-between text-base font-semibold text-foreground">
         <span>{"\u0420\u0430\u0437\u043e\u043c"}</span>
@@ -1564,7 +1603,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
               </DrawerHeader>
               <ScrollArea className="max-h-[60vh]">
                 <div className="p-4">
-                  {renderZonesContent()}
+                  {renderZonesContent("list")}
                 </div>
               </ScrollArea>
             </DrawerContent>
