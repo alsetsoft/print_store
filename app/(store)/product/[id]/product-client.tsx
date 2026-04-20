@@ -238,14 +238,18 @@ function ProductPreview({
 
       if (!printImageUrl || activeImage.zones.length === 0) return
 
-      // Render prints in zones that have placements for *this* image. If the
-      // placements were saved against a different color variant's zones (or
-      // none exist yet), fall back to centering on the first zone so the
-      // print never silently disappears when the user switches colors.
+      // Render prints only in zones that have explicit placements. If the
+      // product has no placements at all (legacy products created before
+      // multi-zone support), fall back to centering on the first zone.
       const matchingZones = activeImage.zones.filter(z => placements[z.id])
+      const hasAnyPlacements = Object.keys(placements).length > 0
       const zonesToRender = matchingZones.length > 0
         ? matchingZones
-        : [activeImage.zones[0]]
+        : hasAnyPlacements
+          ? []
+          : [activeImage.zones[0]]
+
+      if (zonesToRender.length === 0) return
 
       for (const zone of zonesToRender) {
         const placement = placements[zone.id]
