@@ -746,6 +746,13 @@ export default function GeneratePage() {
   }
   const activeCombinations = allCombinations.filter((c) => !rejectedKeys.has(c.key))
 
+  const basesMissingZoneSelection = selectedBases.filter((b) => {
+    const hasZones = b.images.some((img) => img.zones.length > 0)
+    const hasSelection = (zoneSelections[b.id] ?? []).length > 0
+    return hasZones && !hasSelection
+  })
+  const canSave = basesMissingZoneSelection.length === 0
+
   const rejectCombo = (key: string) => setRejectedKeys((prev) => new Set([...prev, key]))
 
   const handleSave = async () => {
@@ -886,8 +893,9 @@ export default function GeneratePage() {
         {activeCombinations.length > 0 && (
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+            disabled={saving || !canSave}
+            title={!canSave ? `Оберіть зони для: ${basesMissingZoneSelection.map((b) => b.name).join(", ")}` : undefined}
+            className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Додати товари ({activeCombinations.length})
@@ -962,7 +970,7 @@ export default function GeneratePage() {
                     <p className="text-xs text-muted-foreground">{base.article || base.base_categories?.name || "\u2014"}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    {isSelected && hasZones && (
+                    {isSelected && hasZones && selectedPrintIds.size > 0 && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setZonePickerBase(base) }}
                         className={cn(
@@ -1061,11 +1069,17 @@ export default function GeneratePage() {
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Наведіть на картку та натисніть X, щоб відхилити комбінацію
               </p>
+              {!canSave && (
+                <p className="mt-1 text-sm font-medium text-amber-700">
+                  Оберіть зони для: {basesMissingZoneSelection.map((b) => b.name).join(", ")}
+                </p>
+              )}
             </div>
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              disabled={saving || !canSave}
+              title={!canSave ? `Оберіть зони для: ${basesMissingZoneSelection.map((b) => b.name).join(", ")}` : undefined}
+              className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Додати товари ({activeCombinations.length})
