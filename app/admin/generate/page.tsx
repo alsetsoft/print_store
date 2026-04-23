@@ -842,7 +842,7 @@ export default function GeneratePage() {
             print_id: e.printId ? parseInt(e.printId) : parseInt(print.id),
             x: 50,
             y: 50,
-            scale: 100,
+            scale: 50,
             is_mirrored: false,
           }))
           const { error: placementErr } = await supabase
