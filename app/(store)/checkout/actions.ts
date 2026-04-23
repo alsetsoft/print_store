@@ -43,8 +43,15 @@ interface CartItemForOrder {
 export async function createOrder(formData: OrderFormData, cartItems: CartItemForOrder[]) {
   const supabase = await createClient()
 
-  // Get authenticated user (if any)
-  const { data: { user } } = await supabase.auth.getUser()
+  // Get authenticated user (if any). Tolerate a stale refresh token so guest
+  // checkout still works when the browser has an invalidated session cookie.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   // Generate order number
   const { data: seqData, error: seqError } = await supabase.rpc("nextval_order_number")

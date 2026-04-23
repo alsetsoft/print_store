@@ -59,11 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => {
-      setUser(u)
-      if (u) fetchProfile(u.id)
-      setLoading(false)
-    })
+    supabase.auth.getUser()
+      .then(({ data: { user: u } }) => {
+        setUser(u)
+        if (u) fetchProfile(u.id)
+        setLoading(false)
+      })
+      .catch(() => {
+        // Stale/invalidated refresh token — treat as signed out.
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null

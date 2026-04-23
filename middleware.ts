@@ -4,9 +4,16 @@ import { createMiddlewareClient } from '@/lib/supabase/middleware'
 export async function middleware(request: NextRequest) {
   const { supabase, response } = await createMiddlewareClient(request)
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // A stale/invalidated refresh token makes getUser throw ("Invalid Refresh
+  // Token: Refresh Token Not Found"). Treat it as signed out — @supabase/ssr
+  // clears the session cookies on the response via setAll.
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    user = null
+  }
 
   const pathname = request.nextUrl.pathname
   const isAdminRoute = pathname.startsWith('/admin')
