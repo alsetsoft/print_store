@@ -12,6 +12,27 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+function mapSignUpError(err: { code?: string; message?: string }): string {
+  const code = err.code ?? ""
+  const msg = err.message ?? ""
+  if (code === "email_address_invalid" || /Email address .* is invalid/i.test(msg)) {
+    return "\u0426\u0435\u0439 email \u043d\u0435 \u043f\u0440\u0438\u0439\u043c\u0430\u0454\u0442\u044c\u0441\u044f. \u0412\u0432\u0435\u0434\u0456\u0442\u044c \u0434\u0456\u0439\u0441\u043d\u0443 \u043f\u043e\u0448\u0442\u043e\u0432\u0443 \u0430\u0434\u0440\u0435\u0441\u0443."
+  }
+  if (msg.includes("already registered") || msg.includes("User already registered")) {
+    return "\u0426\u0435\u0439 email \u0432\u0436\u0435 \u0437\u0430\u0440\u0435\u0454\u0441\u0442\u0440\u043e\u0432\u0430\u043d\u043e"
+  }
+  if (code === "weak_password" || /Password should/i.test(msg)) {
+    return "\u041f\u0430\u0440\u043e\u043b\u044c \u0437\u0430\u043d\u0430\u0434\u0442\u043e \u043f\u0440\u043e\u0441\u0442\u0438\u0439. \u0412\u0438\u043a\u043e\u0440\u0438\u0441\u0442\u0430\u0439\u0442\u0435 \u0456\u043d\u0448\u0438\u0439."
+  }
+  if (code === "signup_disabled") {
+    return "\u0420\u0435\u0454\u0441\u0442\u0440\u0430\u0446\u0456\u044f \u0442\u0438\u043c\u0447\u0430\u0441\u043e\u0432\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430."
+  }
+  if (code === "over_email_send_rate_limit" || code === "over_request_rate_limit" || /rate limit/i.test(msg)) {
+    return "\u0417\u0430\u0431\u0430\u0433\u0430\u0442\u043e \u0441\u043f\u0440\u043e\u0431. \u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0447\u0435\u0440\u0435\u0437 \u043a\u0456\u043b\u044c\u043a\u0430 \u0445\u0432\u0438\u043b\u0438\u043d."
+  }
+  return msg || "\u041f\u043e\u043c\u0438\u043b\u043a\u0430 \u0440\u0435\u0454\u0441\u0442\u0440\u0430\u0446\u0456\u0457"
+}
+
 export function RegisterClient() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -51,9 +72,7 @@ export function RegisterClient() {
       },
     })
     if (error) {
-      toast.error(error.message.includes("already registered")
-        ? "\u0426\u0435\u0439 email \u0432\u0436\u0435 \u0437\u0430\u0440\u0435\u0454\u0441\u0442\u0440\u043e\u0432\u0430\u043d\u043e"
-        : "\u041f\u043e\u043c\u0438\u043b\u043a\u0430 \u0440\u0435\u0454\u0441\u0442\u0440\u0430\u0446\u0456\u0457")
+      toast.error(mapSignUpError(error))
       setLoading(false)
       return
     }
@@ -73,9 +92,19 @@ export function RegisterClient() {
       options: { data: { full_name: phoneFullName } },
     })
     if (error) {
-      toast.error(error.message.includes("not enabled")
-        ? "SMS-\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0456\u044f \u0449\u0435 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0430"
-        : "\u041f\u043e\u043c\u0438\u043b\u043a\u0430 \u0432\u0456\u0434\u043f\u0440\u0430\u0432\u043a\u0438 SMS")
+      const m = error.message ?? ""
+      const c = error.code ?? ""
+      let text: string
+      if (m.includes("not enabled")) {
+        text = "SMS-\u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0456\u044f \u0449\u0435 \u043d\u0435 \u043d\u0430\u043b\u0430\u0448\u0442\u043e\u0432\u0430\u043d\u0430"
+      } else if (c === "over_sms_send_rate_limit" || c === "over_request_rate_limit" || /rate limit/i.test(m)) {
+        text = "\u0417\u0430\u0431\u0430\u0433\u0430\u0442\u043e \u0441\u043f\u0440\u043e\u0431. \u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0447\u0435\u0440\u0435\u0437 \u043a\u0456\u043b\u044c\u043a\u0430 \u0445\u0432\u0438\u043b\u0438\u043d."
+      } else if (c === "validation_failed" || /invalid phone/i.test(m)) {
+        text = "\u041d\u0435\u0432\u0456\u0440\u043d\u0438\u0439 \u0444\u043e\u0440\u043c\u0430\u0442 \u0442\u0435\u043b\u0435\u0444\u043e\u043d\u0443"
+      } else {
+        text = m || "\u041f\u043e\u043c\u0438\u043b\u043a\u0430 \u0432\u0456\u0434\u043f\u0440\u0430\u0432\u043a\u0438 SMS"
+      }
+      toast.error(text)
       setLoading(false)
       return
     }
@@ -89,7 +118,13 @@ export function RegisterClient() {
     setLoading(true)
     const { error } = await supabase.auth.verifyOtp({ phone, token: otpCode, type: "sms" })
     if (error) {
-      toast.error("\u041d\u0435\u0432\u0456\u0440\u043d\u0438\u0439 \u043a\u043e\u0434")
+      const c = error.code ?? ""
+      const m = error.message ?? ""
+      toast.error(
+        c === "over_request_rate_limit" || /rate limit/i.test(m)
+          ? "\u0417\u0430\u0431\u0430\u0433\u0430\u0442\u043e \u0441\u043f\u0440\u043e\u0431. \u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0447\u0435\u0440\u0435\u0437 \u043a\u0456\u043b\u044c\u043a\u0430 \u0445\u0432\u0438\u043b\u0438\u043d."
+          : "\u041d\u0435\u0432\u0456\u0440\u043d\u0438\u0439 \u043a\u043e\u0434"
+      )
       setLoading(false)
       return
     }

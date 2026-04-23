@@ -236,6 +236,7 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const [resizeStartScale, setResizeStartScale] = useState(50)
   const rafRef = useRef<number | null>(null)
   const pendingPosRef = useRef<{ x: number; y: number } | null>(null)
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
 
   // Right panel form state
@@ -580,7 +581,13 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
     const aspect = aspectMapRef.current[elId] ?? 1
     const halfX = currentEl.scale / 2
     const halfY = (currentEl.scale / 100 * zw / aspect) / zh * 50
-    const newPos = constrainPos((mx / zw) * 100, (my / zh) * 100, halfX, halfY)
+    const offset = dragOffsetRef.current
+    const newPos = constrainPos(
+      (mx / zw) * 100 - offset.x,
+      (my / zh) * 100 - offset.y,
+      halfX,
+      halfY,
+    )
     const snapX = Math.abs(newPos.x - 50) < SNAP_THRESHOLD
     const snapY = Math.abs(newPos.y - 50) < SNAP_THRESHOLD
     if (snapX) newPos.x = 50
@@ -1320,6 +1327,23 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
                             e.stopPropagation()
                             setSelectedElementId(el.id)
                             setSelectedZoneId(el.zoneId)
+                            // Record where the user grabbed the element, relative to its center,
+                            // so drag preserves that offset instead of snapping the center to the pointer.
+                            if (canvasRef.current && imageRect) {
+                              const cr = canvasRef.current.getBoundingClientRect()
+                              const zl = imageRect.left + (zone.x / 100) * imageRect.width
+                              const zt = imageRect.top + (zone.y / 100) * imageRect.height
+                              const zw = (zone.width / 100) * imageRect.width
+                              const zh = (zone.height / 100) * imageRect.height
+                              const pointerXPct = ((e.clientX - cr.left - zl) / zw) * 100
+                              const pointerYPct = ((e.clientY - cr.top - zt) / zh) * 100
+                              dragOffsetRef.current = {
+                                x: pointerXPct - (el.position?.x ?? 50),
+                                y: pointerYPct - (el.position?.y ?? 50),
+                              }
+                            } else {
+                              dragOffsetRef.current = { x: 0, y: 0 }
+                            }
                             setIsDragging(true)
                           }}
                           onResizeStart={(dir, e) => {

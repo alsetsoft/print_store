@@ -12,6 +12,18 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+function mapLoginError(err: { code?: string; message?: string }): string {
+  const code = err.code ?? ""
+  const msg = err.message ?? ""
+  if (code === "email_not_confirmed" || /email not confirmed/i.test(msg)) {
+    return "\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0456\u0442\u044c email. \u041b\u0438\u0441\u0442 \u0437 \u043f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0436\u0435\u043d\u043d\u044f\u043c \u0431\u0443\u043b\u043e \u043d\u0430\u0434\u0456\u0441\u043b\u0430\u043d\u043e \u043f\u0440\u0438 \u0440\u0435\u0454\u0441\u0442\u0440\u0430\u0446\u0456\u0457."
+  }
+  if (code === "over_request_rate_limit" || /rate limit/i.test(msg)) {
+    return "\u0417\u0430\u0431\u0430\u0433\u0430\u0442\u043e \u0441\u043f\u0440\u043e\u0431 \u0432\u0445\u043e\u0434\u0443. \u0421\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0456\u0437\u043d\u0456\u0448\u0435."
+  }
+  return "\u041d\u0435\u0432\u0456\u0440\u043d\u0438\u0439 email \u0430\u0431\u043e \u043f\u0430\u0440\u043e\u043b\u044c"
+}
+
 export function LoginClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -35,7 +47,7 @@ export function LoginClient() {
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      toast.error("\u041d\u0435\u0432\u0456\u0440\u043d\u0438\u0439 email \u0430\u0431\u043e \u043f\u0430\u0440\u043e\u043b\u044c")
+      toast.error(mapLoginError(error))
       setLoading(false)
       return
     }
