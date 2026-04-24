@@ -195,7 +195,6 @@ export function ProductConstructorModal({
   } | null>(null)
   const [snappedAxis, setSnappedAxis] = useState<{ x: boolean; y: boolean }>({ x: false, y: false })
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [productName, setProductName] = useState(initialProductName ?? "")
   const [productDescription, setProductDescription] = useState(initialProductDescription ?? "")
 
@@ -454,14 +453,28 @@ export function ProductConstructorModal({
     return { x, y }
   }, [getZonePx])
 
-  const halfSizePct = useCallback((scaleOverride?: number) => {
+  // Contain-fit: at scale=100% the print occupies the largest rect that fits the
+  // zone while preserving aspect ratio. Matches the storefront canvas renderer so
+  // placement previews are pixel-identical across admin / catalog / product page.
+  const fitFactors = useCallback((scaleOverride?: number) => {
     const zone = getZonePx()
-    if (!zone) return { halfX: 0, halfY: 0 }
     const scale = scaleOverride ?? printScale
-    const halfX = scale / 2
-    const halfY = (((scale / 100) * zone.width) / printAspect / zone.height) * 50
-    return { halfX, halfY }
+    if (!zone || zone.height === 0 || printAspect <= 0) {
+      return { widthFactor: 1, heightFactor: 1, scale }
+    }
+    const zoneRatio = zone.width / zone.height
+    const widthFactor = printAspect >= zoneRatio ? 1 : printAspect / zoneRatio
+    const heightFactor = printAspect >= zoneRatio ? zoneRatio / printAspect : 1
+    return { widthFactor, heightFactor, scale }
   }, [getZonePx, printScale, printAspect])
+
+  const halfSizePct = useCallback((scaleOverride?: number) => {
+    const { widthFactor, heightFactor, scale } = fitFactors(scaleOverride)
+    return {
+      halfX: (widthFactor * scale) / 2,
+      halfY: (heightFactor * scale) / 2,
+    }
+  }, [fitFactors])
 
   const constrainPos = useCallback((x: number, y: number, halfX: number, halfY: number) => ({
     x: Math.max(halfX, Math.min(100 - halfX, x)),
@@ -680,8 +693,7 @@ export function ProductConstructorModal({
         await supabase.from("products").update(productUpdate).eq("id", parseInt(productId))
       }
       onSaved(productId, config)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      onClose()
     } catch (err) {
       console.error("[v0] Save print config failed:", err)
     } finally {
@@ -721,12 +733,12 @@ export function ProductConstructorModal({
               disabled={saving}
               className={cn(
                 "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
-                saved ? "bg-primary/10 text-primary" : "bg-primary text-primary-foreground hover:bg-primary/90",
+                "bg-primary text-primary-foreground hover:bg-primary/90",
                 saving && "opacity-60 cursor-not-allowed"
               )}
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
-              {saved ? "\u0417\u0431\u0435\u0440\u0435\u0436\u0435\u043D\u043E" : "\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438"}
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {"\u0417\u0431\u0435\u0440\u0435\u0433\u0442\u0438"}
             </button>
             <button
               onClick={onClose}
@@ -1013,7 +1025,9 @@ export function ProductConstructorModal({
                       </div>
                     )}
 
-                    {activePrintUrl && (
+                    {activePrintUrl && (() => {
+                      const { widthFactor, heightFactor } = fitFactors()
+                      return (
                       <div
                         ref={printWrapperRef}
                         className={cn(
@@ -1024,11 +1038,11 @@ export function ProductConstructorModal({
                         style={{
                           left: `${printPosition.x}%`,
                           top: `${printPosition.y}%`,
-                          width: `${printScale}%`,
-                          aspectRatio: `${printAspect}`,
+                          width: `${printScale * widthFactor}%`,
+                          height: `${printScale * heightFactor}%`,
                           transform: "translate(-50%, -50%)",
                           touchAction: "none",
-                          willChange: isDragging || isResizing || isPinching ? "left, top, width" : "auto",
+                          willChange: isDragging || isResizing || isPinching ? "left, top, width, height" : "auto",
                         }}
                         onPointerDown={onPrintPointerDown}
                         onClick={(e) => { e.stopPropagation(); setIsPrintSelected(true) }}
@@ -1095,7 +1109,8 @@ export function ProductConstructorModal({
                           )
                         })()}
                       </div>
-                    )}
+                      )
+                    })()}
                   </div>
                 )}
               </div>
