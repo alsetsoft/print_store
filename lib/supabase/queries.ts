@@ -12,6 +12,13 @@ export type EnrichedProductImage = {
   zones: { id: string; x: number; y: number; width: number; height: number }[]
 }
 
+export type SiblingColor = {
+  productId: number
+  colorId: number | null
+  hex: string | null
+  name: string | null
+}
+
 export type EnrichedProduct = {
   id: number
   name: string
@@ -21,6 +28,7 @@ export type EnrichedProduct = {
   images: EnrichedProductImage[]
   initialImageIndex: number
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
+  siblingColors: SiblingColor[]
 }
 
 export async function fetchEnrichedProducts(
@@ -70,6 +78,7 @@ export async function fetchEnrichedProducts(
       { count: count ? "exact" : undefined }
     )
     .eq("is_active", true)
+    .eq("is_previewable", true)
 
   if (baseIds !== null) {
     productQuery = productQuery.in("base_id", baseIds)
@@ -196,6 +205,32 @@ export async function fetchEnrichedProducts(
     }
   }
 
+  // Fetch the full color palette per base (all base_colors join with colors).
+  // Each swatch points back to the same product with ?color=X — the product page
+  // picks up that param to swap the base mockup.
+  const { data: rawBaseColors } = await supabase
+    .from("base_colors")
+    .select("base_id, color_id, colors:color_id(id, hex_code, name)")
+    .in("base_id", uniqueBaseIds)
+
+  type BaseColorRow = {
+    base_id: number
+    color_id: number
+    colors: { id: number; hex_code: string | null; name: string | null } | null
+  }
+  const colorsByBase = new Map<number, SiblingColor[]>()
+  for (const bc of (rawBaseColors ?? []) as unknown as BaseColorRow[]) {
+    if (!bc.colors) continue
+    const arr = colorsByBase.get(bc.base_id) ?? []
+    arr.push({
+      productId: 0, // placeholder — filled in per product below
+      colorId: bc.color_id,
+      hex: bc.colors.hex_code,
+      name: bc.colors.name,
+    })
+    colorsByBase.set(bc.base_id, arr)
+  }
+
   const enrichedProducts: EnrichedProduct[] = products.map((p) => {
     // Pick the product's color from its primary base_image_id.
     const primaryImg = p.base_image_id != null
@@ -235,6 +270,10 @@ export async function fetchEnrichedProducts(
       colorId,
       images,
       initialImageIndex,
+      siblingColors: (colorsByBase.get(p.base_id) ?? []).map((c) => ({
+        ...c,
+        productId: p.id,
+      })),
       placements: (() => {
         const raw = placementsByProduct.get(p.id) ?? {}
         const resolved: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}

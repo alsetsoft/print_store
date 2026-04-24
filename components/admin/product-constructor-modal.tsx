@@ -37,6 +37,12 @@ interface ProductConstructorModalProps {
   initialConfig?: PrintConfig | null
   allowedPlacements?: Array<{ imageId: string; zoneId: string }>
   initialPrimary?: { imageId: string; zoneId: string } | null
+  /** All base images across every color — used by the preview-color picker. */
+  allBaseImages?: BaseImage[]
+  /** Palette for the preview-color picker. Empty/omitted = picker hidden. */
+  availableColors?: Array<{ id: number; name: string; hex_code: string | null }>
+  /** Preview color the product currently uses (derived from product.base_image_id). */
+  initialColorId?: number | null
   onClose: () => void
   onSaved: (productId: string, config: PrintConfig) => void
 }
@@ -68,22 +74,58 @@ export function ProductConstructorModal({
   initialConfig,
   allowedPlacements,
   initialPrimary,
+  allBaseImages,
+  availableColors,
+  initialColorId,
   onClose,
   onSaved,
 }: ProductConstructorModalProps) {
+  // Currently selected preview color. Drives image filtering + what gets written
+  // back to `products.base_image_id` on save.
+  const [currentColorId, setCurrentColorId] = useState<number | null>(initialColorId ?? null)
+
+  // Full image set across all colors, when the parent supplied it. Falls back to
+  // the color-scoped `base.images` (legacy callers).
+  const colorScopedImages: BaseImage[] = useMemo(() => {
+    if (!allBaseImages || allBaseImages.length === 0) return base.images
+    if (currentColorId == null) {
+      return allBaseImages.filter((img) => img.colorId == null)
+    }
+    return allBaseImages.filter((img) => img.colorId === currentColorId)
+  }, [allBaseImages, base.images, currentColorId])
+
   // Strict filter: only the (image, zone) pairs the generator originally picked.
+  // When the preview color changes, translate the allowedPlacements entries (which
+  // reference original-color image/zone ids) to the equivalent pair on the new
+  // color via label-matching on images and positional matching on zones.
   const visibleImages: BaseImage[] = useMemo(() => {
     const allowed = allowedPlacements && allowedPlacements.length > 0 ? allowedPlacements : null
-    if (!allowed) return base.images
-    return base.images
+    if (!allowed) return colorScopedImages
+
+    // Build a map of translated allowed pairs for the current color set.
+    const sourceImages = allBaseImages && allBaseImages.length > 0 ? allBaseImages : base.images
+    const translated = new Set<string>() // "imageId|zoneId"
+    for (const a of allowed) {
+      const srcImg = sourceImages.find((i) => i.id === a.imageId)
+      if (!srcImg) continue
+      const targetImg =
+        colorScopedImages.find((i) => i.label === srcImg.label) ??
+        colorScopedImages[sourceImages.filter((i) => i.colorId === srcImg.colorId).indexOf(srcImg)] ??
+        colorScopedImages[0]
+      if (!targetImg) continue
+      const srcZoneIdx = srcImg.zones.findIndex((z) => z.id === a.zoneId)
+      const targetZone = targetImg.zones[srcZoneIdx] ?? targetImg.zones[0]
+      if (!targetZone) continue
+      translated.add(`${targetImg.id}|${targetZone.id}`)
+    }
+
+    return colorScopedImages
       .map((img) => ({
         ...img,
-        zones: img.zones.filter((z) =>
-          allowed.some((p) => p.imageId === img.id && p.zoneId === z.id),
-        ),
+        zones: img.zones.filter((z) => translated.has(`${img.id}|${z.id}`)),
       }))
       .filter((img) => img.zones.length > 0)
-  }, [base.images, allowedPlacements])
+  }, [allowedPlacements, allBaseImages, base.images, colorScopedImages])
 
   const hasImages = visibleImages.length > 0
 
@@ -235,6 +277,65 @@ export function ProductConstructorModal({
     document.addEventListener("pointerdown", onDown, true)
     return () => document.removeEventListener("pointerdown", onDown, true)
   }, [isPrintSelected])
+
+  // Switch preview color: remap imgIndex, selectedZoneId, and placementsRef keys
+  // to point at the equivalent image/zone ids in the new color (matched by label
+  // and positional index). Save handlers then persist the new ids back to the DB.
+  const handleColorChange = useCallback((nextColorId: number | null) => {
+    if (nextColorId === currentColorId) return
+    const source = allBaseImages && allBaseImages.length > 0 ? allBaseImages : base.images
+    const prevColorImages = currentColorId == null
+      ? source.filter((i) => i.colorId == null)
+      : source.filter((i) => i.colorId === currentColorId)
+    const nextColorImages = nextColorId == null
+      ? source.filter((i) => i.colorId == null)
+      : source.filter((i) => i.colorId === nextColorId)
+
+    // Build zoneId → zoneId mapping by label + positional index.
+    const zoneIdMap = new Map<string, string>()
+    for (const prevImg of prevColorImages) {
+      const nextImg =
+        nextColorImages.find((i) => i.label === prevImg.label) ??
+        nextColorImages[prevColorImages.indexOf(prevImg)] ??
+        nextColorImages[0]
+      if (!nextImg) continue
+      prevImg.zones.forEach((z, idx) => {
+        const nextZone = nextImg.zones[idx] ?? nextImg.zones[0]
+        if (nextZone) zoneIdMap.set(z.id, nextZone.id)
+      })
+    }
+
+    // Remap placementsRef entries to the new zone ids.
+    const remapped: Record<string, PrintPlacement> = {}
+    for (const [oldZoneId, placement] of Object.entries(placementsRef.current)) {
+      const newZoneId = zoneIdMap.get(oldZoneId)
+      if (!newZoneId) continue
+      remapped[newZoneId] = { ...placement, zone_id: parseInt(newZoneId) }
+    }
+    placementsRef.current = remapped
+
+    // Translate current image / zone selection to the new color.
+    const oldImage = visibleImages[imgIndex]
+    const nextImageId = oldImage
+      ? (nextColorImages.find((i) => i.label === oldImage.label)?.id ?? nextColorImages[0]?.id ?? null)
+      : nextColorImages[0]?.id ?? null
+
+    setCurrentColorId(nextColorId)
+    // imgIndex/selectedZoneId reset after next render (when visibleImages updates).
+    // Defer via microtask so the recomputed memo is in effect.
+    queueMicrotask(() => {
+      // Find the index in the newly-filtered visible set.
+      if (nextImageId != null) {
+        const idx = nextColorImages.findIndex((i) => i.id === nextImageId)
+        setImgIndex(idx >= 0 ? idx : 0)
+      } else {
+        setImgIndex(0)
+      }
+      const mappedZone = selectedZoneId ? zoneIdMap.get(selectedZoneId) : null
+      setSelectedZoneId(mappedZone ?? null)
+      setPlacementsVersion((v) => v + 1)
+    })
+  }, [allBaseImages, base.images, currentColorId, imgIndex, selectedZoneId, visibleImages])
 
   // Recompute displayed image bounds inside the canvas container.
   const updateImageRect = useCallback(() => {
@@ -618,6 +719,46 @@ export function ProductConstructorModal({
 
           {/* Sidebar */}
           <div className="flex w-full sm:w-60 shrink-0 flex-row sm:flex-col border-b sm:border-b-0 sm:border-r border-border overflow-x-auto sm:overflow-x-visible max-h-[160px] sm:max-h-none">
+
+            {availableColors && availableColors.length > 1 && (
+              <div className="border-b border-border p-3 shrink-0 sm:shrink">
+                <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  {"Колір превʼю"}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableColors.map((c) => {
+                    const isActive = currentColorId === c.id
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleColorChange(c.id)}
+                        title={c.name}
+                        aria-label={c.name}
+                        className={cn(
+                          "relative h-8 w-8 rounded-full border transition-all",
+                          isActive
+                            ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-card"
+                            : "border-border hover:border-primary/60"
+                        )}
+                        style={{ backgroundColor: c.hex_code ?? "transparent" }}
+                      >
+                        {isActive && (
+                          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                            <Check className="h-2 w-2" />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                {currentColorId != null && (
+                  <p className="mt-2 truncate text-[11px] text-muted-foreground">
+                    {availableColors.find((c) => c.id === currentColorId)?.name ?? ""}
+                  </p>
+                )}
+              </div>
+            )}
 
             {showImagePicker && (
               <div className="border-b border-border p-3 shrink-0 sm:shrink">

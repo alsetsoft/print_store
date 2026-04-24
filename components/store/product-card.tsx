@@ -11,6 +11,13 @@ type CardImage = {
   zones: { id: string; x: number; y: number; width: number; height: number }[]
 }
 
+type SiblingSwatch = {
+  productId: number
+  colorId: number | null
+  hex: string | null
+  name: string | null
+}
+
 interface ProductCardProps {
   product: {
     id: number
@@ -21,6 +28,7 @@ interface ProductCardProps {
     initialImageIndex: number
     placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
     colorId?: number | null
+    siblingColors?: SiblingSwatch[]
   }
 }
 
@@ -136,70 +144,101 @@ export function ProductCard({ product }: ProductCardProps) {
     setActiveIndex(i)
   }
 
-  return (
-    <Link
-      href={product.colorId ? `/product/${product.id}?color=${product.colorId}` : `/product/${product.id}`}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-all hover:border-primary/30 hover:shadow-md"
-    >
-      <div className="relative aspect-square overflow-hidden bg-muted">
-        {hasBase ? (
-          <canvas
-            ref={canvasRef}
-            className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <Package className="size-10 text-muted-foreground/30" />
-          </div>
-        )}
+  const productHref = product.colorId
+    ? `/product/${product.id}?color=${product.colorId}`
+    : `/product/${product.id}`
 
-        {hasMultiple && (
-          <>
-            <button
-              type="button"
-              onClick={go(-1)}
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
-              aria-label="Попередня"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={go(1)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
-              aria-label="Наступна"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-            <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-              {images.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={jumpTo(i)}
-                  className={cn(
-                    "h-1.5 rounded-full transition-all",
-                    activeIndex === i
-                      ? "w-3.5 bg-primary"
-                      : "w-1.5 bg-foreground/25 hover:bg-foreground/50"
-                  )}
-                  aria-label={`Фото ${i + 1}`}
-                />
-              ))}
+  const swatches = product.siblingColors ?? []
+  const showSwatches = swatches.length > 1
+
+  return (
+    <div className="group flex flex-col overflow-hidden rounded-lg border bg-card transition-all hover:border-primary/30 hover:shadow-md">
+      <Link href={productHref} className="flex flex-col">
+        <div className="relative aspect-square overflow-hidden bg-muted">
+          {hasBase ? (
+            <canvas
+              ref={canvasRef}
+              className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Package className="size-10 text-muted-foreground/30" />
             </div>
-          </>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col p-3">
-        <h3 className="text-sm font-medium text-card-foreground line-clamp-2 group-hover:text-primary transition-colors">
-          {product.name}
-        </h3>
-        {product.price != null && product.price > 0 && (
-          <p className="mt-auto pt-2 text-sm font-bold text-foreground">
-            {product.price} {"\u0433\u0440\u043d"}
-          </p>
-        )}
-      </div>
-    </Link>
+          )}
+
+          {hasMultiple && (
+            <>
+              <button
+                type="button"
+                onClick={go(-1)}
+                className="absolute left-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+                aria-label={"Попередня"}
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={go(1)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 flex size-8 items-center justify-center rounded-full bg-background/85 border shadow-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
+                aria-label={"Наступна"}
+              >
+                <ChevronRight className="size-4" />
+              </button>
+              <div className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                {images.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={jumpTo(i)}
+                    className={cn(
+                      "h-1.5 rounded-full transition-all",
+                      activeIndex === i
+                        ? "w-3.5 bg-primary"
+                        : "w-1.5 bg-foreground/25 hover:bg-foreground/50"
+                    )}
+                    aria-label={`Фото ${i + 1}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col p-3">
+          <h3 className="text-sm font-medium text-card-foreground line-clamp-2 group-hover:text-primary transition-colors">
+            {product.name}
+          </h3>
+          {product.price != null && product.price > 0 && (
+            <p className="mt-auto pt-2 text-sm font-bold text-foreground">
+              {product.price} {"грн"}
+            </p>
+          )}
+        </div>
+      </Link>
+      {showSwatches && (
+        <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+          {swatches.map((s) => {
+            const isSelected = s.colorId === (product.colorId ?? null)
+            const href = s.colorId
+              ? `/product/${s.productId}?color=${s.colorId}`
+              : `/product/${s.productId}`
+            return (
+              <Link
+                key={`${s.productId}-${s.colorId ?? "none"}`}
+                href={href}
+                aria-label={s.name ?? "колір"}
+                title={s.name ?? undefined}
+                className={cn(
+                  "size-5 rounded-full border transition-all",
+                  isSelected
+                    ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-card"
+                    : "border-border hover:border-primary/60"
+                )}
+                style={{ backgroundColor: s.hex ?? "transparent" }}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

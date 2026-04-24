@@ -47,29 +47,19 @@ function mapEntriesToColor(
 
   return entries.map((entry) => {
     const srcIdx = fromImages.findIndex((img) => img.id === entry.imageId)
-    const targetImg = toImages[srcIdx] ?? toImages[0]
+    const srcImage = fromImages[srcIdx]
+    let targetImg = toImages[srcIdx]
+    if (!targetImg && srcImage) {
+      targetImg = toImages.find((img) => img.label === srcImage.label) ?? toImages[0]
+    }
     if (!targetImg) return entry
 
-    const srcImage = fromImages[srcIdx]
     const zoneIdx = srcImage?.zones.findIndex((z) => z.id === entry.zoneId) ?? 0
     const targetZone = targetImg.zones[zoneIdx] ?? targetImg.zones[0]
     if (!targetZone) return entry
 
     return { ...entry, imageId: targetImg.id, zoneId: targetZone.id }
   })
-}
-
-// Rough luminance check so we know whether to draw light or dark icons over a hex swatch.
-function isDarkHex(hex?: string | null): boolean {
-  if (!hex) return false
-  const h = hex.replace("#", "")
-  if (h.length !== 3 && h.length !== 6) return false
-  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h
-  const r = parseInt(full.slice(0, 2), 16)
-  const g = parseInt(full.slice(2, 4), 16)
-  const b = parseInt(full.slice(4, 6), 16)
-  // Perceived luminance (Rec. 709).
-  return (0.2126 * r + 0.7152 * g + 0.0722 * b) < 140
 }
 
 // ─── Print Selector Dropdown ─────────────────────────────────────────────────
@@ -252,56 +242,39 @@ function ZonePickerModal({
   base,
   entries,
   prints,
-  initialColorIds,
+  initialPreviewColorId,
   onSave,
   onClose,
 }: {
   base: Base
   entries: MultiZoneEntry[]
   prints: Print[]
-  initialColorIds: number[]
-  onSave: (entries: MultiZoneEntry[], colorIds: number[]) => void
+  initialPreviewColorId: number | null
+  onSave: (entries: MultiZoneEntry[], previewColorId: number | null) => void
   onClose: () => void
 }) {
   const [local, setLocal] = useState<MultiZoneEntry[]>([...entries])
-  const [selectedColorIds, setSelectedColorIds] = useState<number[]>(
-    initialColorIds.length > 0
-      ? initialColorIds
-      : base.colors.length > 0
-        ? [base.colors[0].id]
-        : []
+  const [previewColorId, setPreviewColorId] = useState<number | null>(
+    initialPreviewColorId ?? base.colors[0]?.id ?? base.images[0]?.colorId ?? null
   )
+  const prevColorRef = useRef<number | null>(previewColorId)
 
-  const prevDisplayColorIdRef = useRef<number | null>(selectedColorIds[0] ?? null)
-
-  // Display color = first selected color (used for filtering images)
-  const displayColorId = selectedColorIds[0] ?? null
-
-  // Filter images by display color
-  const visibleImages = displayColorId != null
-    ? base.images.filter((img) => img.colorId === displayColorId)
-    : base.images.filter((img) => img.colorId == null)
-
-  // Auto-map zones when display color changes
+  // Re-map zones when preview color changes (zones are per-image-per-color).
   useEffect(() => {
-    const prevColorId = prevDisplayColorIdRef.current
-    if (prevColorId !== displayColorId && prevColorId != null && displayColorId != null && local.length > 0) {
-      setLocal((prev) => mapEntriesToColor(base, prev, prevColorId, displayColorId))
+    const prev = prevColorRef.current
+    if (prev !== previewColorId && prev != null && previewColorId != null && local.length > 0) {
+      setLocal((p) => mapEntriesToColor(base, p, prev, previewColorId))
     }
-    prevDisplayColorIdRef.current = displayColorId
-  }, [displayColorId, base])
+    prevColorRef.current = previewColorId
+  }, [previewColorId, base])
+
+  // Filter images by preview color (or images with null color_id if no color)
+  const visibleImages = previewColorId != null
+    ? base.images.filter((img) => img.colorId === previewColorId)
+    : base.images.filter((img) => img.colorId == null)
 
   // Build a lookup: zoneId → entry index
   const selectedZoneIds = new Set(local.map((e) => e.zoneId))
-
-  const toggleColor = (colorId: number) => {
-    setSelectedColorIds((prev) => {
-      if (prev.includes(colorId)) {
-        return prev.length > 1 ? prev.filter((id) => id !== colorId) : prev
-      }
-      return [...prev, colorId]
-    })
-  }
 
   const toggleZone = (imageId: string, zoneId: string) => {
     setLocal((prev) => {
@@ -371,57 +344,50 @@ function ZonePickerModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5">
-          {/* Colors — large circular swatches */}
-          {base.colors.length > 0 && (
-            <section className="mb-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {"\u041A\u043E\u043B\u044C\u043E\u0440\u0438"}
-              </p>
-              <div className="flex flex-wrap gap-3">
+
+          {/* Preview color picker — single-select */}
+          {base.colors.length > 1 && (
+            <section className="mb-6 rounded-xl border border-border bg-muted/20 p-4">
+              <div className="mb-3 flex items-baseline justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {"Колір для превʼю"}
+                </p>
+                {previewColorId != null && (
+                  <p className="truncate text-xs text-foreground">
+                    {base.colors.find((c) => c.id === previewColorId)?.name ?? ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2.5">
                 {base.colors.map((color) => {
-                  const isActive = selectedColorIds.includes(color.id)
-                  const isDisplay = displayColorId === color.id
+                  const isSelected = previewColorId === color.id
                   return (
                     <button
                       key={color.id}
-                      onClick={() => toggleColor(color.id)}
-                      className="group flex flex-col items-center gap-1.5"
+                      type="button"
+                      onClick={() => setPreviewColorId(color.id)}
                       title={color.name}
+                      aria-label={color.name}
+                      className={cn(
+                        "relative h-9 w-9 rounded-full border transition-all",
+                        isSelected
+                          ? "border-primary ring-2 ring-primary ring-offset-2 ring-offset-card"
+                          : "border-border hover:border-primary/60"
+                      )}
+                      style={{ backgroundColor: color.hex_code ?? "transparent" }}
                     >
-                      <span
-                        className={cn(
-                          "relative flex h-11 w-11 items-center justify-center rounded-full border transition-all",
-                          isActive
-                            ? "border-primary ring-4 ring-primary/20"
-                            : "border-border group-hover:border-primary/50"
-                        )}
-                        style={{ backgroundColor: color.hex_code ?? "transparent" }}
-                      >
-                        {isActive && (
-                          <Check
-                            className={cn(
-                              "h-4 w-4 drop-shadow",
-                              // Choose white for dark colors, dark for light.
-                              isDarkHex(color.hex_code) ? "text-white" : "text-neutral-800"
-                            )}
-                          />
-                        )}
-                        {isDisplay && (
-                          <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-primary ring-2 ring-card" />
-                        )}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-xs font-medium",
-                          isActive ? "text-foreground" : "text-muted-foreground"
-                        )}
-                      >
-                        {color.name}
-                      </span>
+                      {isSelected && (
+                        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                          <Check className="h-2.5 w-2.5" />
+                        </span>
+                      )}
                     </button>
                   )
                 })}
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                {"Обраний колір буде показано на картці товару в каталозі"}
+              </p>
             </section>
           )}
 
@@ -559,7 +525,6 @@ function ZonePickerModal({
             {local.length === 0
               ? "\u041D\u0430\u0442\u0438\u0441\u043D\u0456\u0442\u044C \u043D\u0430 \u0437\u043E\u043D\u0443 \u0449\u043E\u0431 \u0434\u043E\u0434\u0430\u0442\u0438"
               : `${local.length} \u0437\u043E\u043D${local.length === 1 ? "\u0430" : local.length < 5 ? "\u0438" : ""} \u043E\u0431\u0440\u0430\u043D\u043E`}
-            {selectedColorIds.length > 0 && ` \u2022 ${selectedColorIds.length} \u043A\u043E\u043B\u044C\u043E\u0440${selectedColorIds.length === 1 ? "" : selectedColorIds.length < 5 ? "\u0438" : "\u0456\u0432"}`}
           </p>
           <div className="flex shrink-0 gap-2">
             <button
@@ -569,7 +534,7 @@ function ZonePickerModal({
               {"\u0421\u043A\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}
             </button>
             <button
-              onClick={() => { onSave(local, selectedColorIds); onClose() }}
+              onClick={() => { onSave(local, previewColorId); onClose() }}
               disabled={!isValid}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -595,7 +560,7 @@ export default function GeneratePage() {
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set())
 
   const [zoneSelections, setZoneSelections] = useState<Record<string, MultiZoneEntry[]>>({})
-  const [colorSelections, setColorSelections] = useState<Record<string, number[]>>({})
+  const [previewColorSelections, setPreviewColorSelections] = useState<Record<string, number | null>>({})
   const [zonePickerBase, setZonePickerBase] = useState<Base | null>(null)
   const [rejectedKeys, setRejectedKeys] = useState<Set<string>>(new Set())
 
@@ -732,16 +697,27 @@ export default function GeneratePage() {
   const selectedBases = bases.filter((b) => selectedBaseIds.has(b.id))
   const selectedPrints = prints.filter((p) => selectedPrintIds.has(p.id))
 
-  // Build combinations with color dimension
-  type Combination = { base: Base; print: Print; colorId: number | null; key: string }
+  // Build combinations: ONE product per (base, print). Preview color comes from
+  // the per-base selection the admin makes in the zone picker modal.
+  type Combination = {
+    base: Base
+    print: Print
+    previewColorId: number | null
+    key: string
+  }
   const allCombinations: Combination[] = []
   for (const base of selectedBases) {
-    const colors = colorSelections[base.id]
-    const colorVariants: (number | null)[] = colors?.length > 0 ? colors : [null]
+    const previewColorId = previewColorSelections[base.id]
+      ?? base.colors[0]?.id
+      ?? base.images[0]?.colorId
+      ?? null
     for (const print of selectedPrints) {
-      for (const colorId of colorVariants) {
-        allCombinations.push({ base, print, colorId, key: `${base.id}-${print.id}-${colorId ?? 'def'}` })
-      }
+      allCombinations.push({
+        base,
+        print,
+        previewColorId,
+        key: `${base.id}-${print.id}`,
+      })
     }
   }
   const activeCombinations = allCombinations.filter((c) => !rejectedKeys.has(c.key))
@@ -773,16 +749,9 @@ export default function GeneratePage() {
       let savedTotal = 0
 
       for (let comboIdx = 0; comboIdx < activeCombinations.length; comboIdx++) {
-        const { base, print, colorId } = activeCombinations[comboIdx]
-        const rawEntries = zoneSelections[base.id] || []
-        const colors = colorSelections[base.id] || []
-        const primaryColorId = colors[0] ?? null
-
-        // Map entries to this color if needed
-        let entries = rawEntries
-        if (colorId != null && primaryColorId != null && colorId !== primaryColorId) {
-          entries = mapEntriesToColor(base, rawEntries, primaryColorId, colorId)
-        }
+        const { base, print, previewColorId } = activeCombinations[comboIdx]
+        // Entries from the modal already correspond to previewColorId's images.
+        const entries = zoneSelections[base.id] || []
 
         // Determine primary zone (first entry or fallback to is_max/first zone)
         let primaryImageId: number | null = null
@@ -792,9 +761,9 @@ export default function GeneratePage() {
           primaryImageId = parseInt(entries[0].imageId)
           primaryZoneId = parseInt(entries[0].zoneId)
         } else {
-          // Fallback: first image of this color with zones, prefer is_max
-          const candidateImages = colorId != null
-            ? base.images.filter((img) => img.colorId === colorId)
+          // Fallback: first image of the preview color with zones, prefer is_max
+          const candidateImages = previewColorId != null
+            ? base.images.filter((img) => img.colorId === previewColorId)
             : base.images
           for (const img of candidateImages) {
             if (img.zones.length > 0) {
@@ -806,17 +775,10 @@ export default function GeneratePage() {
           }
         }
 
-        // Product name with color
-        const colorName = colorId != null ? base.colors.find((c) => c.id === colorId)?.name : null
         const aiText = generatedTexts[comboIdx]
-        const fallbackName = colors.length > 1 && colorName
-          ? `${base.name} + ${print.name} (${colorName})`
-          : `${base.name} + ${print.name}`
-        const productName = aiText?.name
-          ? (colors.length > 1 && colorName ? `${aiText.name} (${colorName})` : aiText.name)
-          : fallbackName
+        const productName = aiText?.name || `${base.name} + ${print.name}`
 
-        // Insert product and get back the id
+        // One product per (base, print) — always the catalog preview.
         const { data: inserted, error: insertErr } = await supabase
           .from("products")
           .insert({
@@ -828,6 +790,7 @@ export default function GeneratePage() {
             zone_id: primaryZoneId,
             price: (Number(base.price) || 0) + (Number(print.price) || 0),
             is_active: true,
+            is_previewable: true,
           })
           .select("id")
           .single()
@@ -859,7 +822,7 @@ export default function GeneratePage() {
       setSelectedPrintIds(new Set())
       setRejectedKeys(new Set())
       setZoneSelections({})
-      setColorSelections({})
+      setPreviewColorSelections({})
     } catch (err) {
       console.error("[v0] Failed to save products:", err)
     } finally {
@@ -943,7 +906,6 @@ export default function GeneratePage() {
               const isSelected = selectedBaseIds.has(base.id)
               const hasZones = base.images.some((img) => img.zones.length > 0)
               const hasSelection = (zoneSelections[base.id] || []).length > 0
-              const selectedColors = colorSelections[base.id] || []
               return (
                 <div
                   key={base.id}
@@ -974,20 +936,20 @@ export default function GeneratePage() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setZonePickerBase(base) }}
                         className={cn(
-                          "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                          "flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium transition-colors",
                           hasSelection ? "bg-primary/10 text-primary hover:bg-primary/20" : "bg-amber-100 text-amber-700 hover:bg-amber-200"
                         )}
                       >
+                        {hasSelection && previewColorSelections[base.id] != null && (
+                          <span
+                            className="h-2.5 w-2.5 rounded-full border border-border"
+                            style={{
+                              backgroundColor: base.colors.find((c) => c.id === previewColorSelections[base.id])?.hex_code ?? "transparent",
+                            }}
+                          />
+                        )}
                         {hasSelection ? `\u0417\u043E\u043D\u0438 (${zoneSelections[base.id].length}) \u2713` : "\u0417\u043E\u043D\u0438"}
                       </button>
-                    )}
-                    {isSelected && base.colors.length > 0 && (
-                      <span className="rounded px-2 py-0.5 text-xs font-medium bg-muted text-muted-foreground">
-                        {selectedColors.length > 0
-                          ? `${selectedColors.length}/${base.colors.length} \u043A\u043E\u043B\u044C\u043E\u0440\u0456\u0432`
-                          : `${base.colors.length} \u043A\u043E\u043B\u044C\u043E\u0440\u0456\u0432`
-                        }
-                      </span>
                     )}
                   </div>
                 </div>
@@ -1087,20 +1049,15 @@ export default function GeneratePage() {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {activeCombinations.map(({ base, print, colorId, key }) => {
-                const colorBase = colorId != null
-                  ? { ...base, images: base.images.filter((img) => img.colorId === colorId) }
+              {activeCombinations.map(({ base, print, previewColorId, key }) => {
+                const colorBase = previewColorId != null
+                  ? { ...base, images: base.images.filter((img) => img.colorId === previewColorId) }
                   : base
-                const colorName = colorId != null ? base.colors.find((c) => c.id === colorId)?.name : null
-                const colors = colorSelections[base.id] || []
-                const rawEntries = zoneSelections[base.id] || []
-                const primaryColorId = colors[0] ?? null
-
-                // Map entries to this color for preview
-                let entries = rawEntries
-                if (colorId != null && primaryColorId != null && colorId !== primaryColorId) {
-                  entries = mapEntriesToColor(base, rawEntries, primaryColorId, colorId)
-                }
+                const colorName = previewColorId != null
+                  ? base.colors.find((c) => c.id === previewColorId)?.name
+                  : null
+                // Entries already reflect the preview color (modal remapped them at save time).
+                const entries = zoneSelections[base.id] || []
 
                 return (
                   <div key={key} className="relative">
@@ -1110,7 +1067,7 @@ export default function GeneratePage() {
                       multiZoneSelection={entries}
                       onReject={() => rejectCombo(key)}
                     />
-                    {colorName && colors.length > 1 && (
+                    {colorName && base.colors.length > 1 && (
                       <span className="absolute left-2 top-2 z-10 rounded-full bg-card/90 px-2 py-0.5 text-xs font-medium text-foreground shadow-sm border border-border">
                         {colorName}
                       </span>
@@ -1129,10 +1086,10 @@ export default function GeneratePage() {
           base={zonePickerBase}
           entries={zoneSelections[zonePickerBase.id] || []}
           prints={prints}
-          initialColorIds={colorSelections[zonePickerBase.id] || []}
-          onSave={(entries, colorIds) => {
+          initialPreviewColorId={previewColorSelections[zonePickerBase.id] ?? null}
+          onSave={(entries, previewColorId) => {
             setZoneSelections((prev) => ({ ...prev, [zonePickerBase.id]: entries }))
-            setColorSelections((prev) => ({ ...prev, [zonePickerBase.id]: colorIds }))
+            setPreviewColorSelections((prev) => ({ ...prev, [zonePickerBase.id]: previewColorId }))
           }}
           onClose={() => setZonePickerBase(null)}
         />

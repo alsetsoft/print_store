@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { ChevronLeft, ChevronRight, X, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, X, Trash2, Eye, EyeOff } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import type { PrintConfig } from "@/components/admin/product-constructor-modal"
@@ -71,6 +71,8 @@ export function CompositeCard({
   isActive,
   isPopular,
   onTogglePopular,
+  isPreviewable,
+  onTogglePreviewable,
 }: {
   base: CompositeBase
   print: CompositePrint
@@ -85,6 +87,8 @@ export function CompositeCard({
   isActive?: boolean
   isPopular?: boolean
   onTogglePopular?: () => void
+  isPreviewable?: boolean
+  onTogglePreviewable?: () => void
 }) {
   // If printConfig has a saved imageIndex, start there
   const [imgIndex, setImgIndex] = useState(printConfig?.imageIndex ?? 0)
@@ -278,6 +282,16 @@ export function CompositeCard({
         </button>
       )}
 
+      {isPreviewable && (
+        <span
+          className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-medium text-primary-foreground shadow"
+          title={"Превʼю каталогу"}
+        >
+          <Eye className="h-3 w-3" />
+          {"Превʼю"}
+        </span>
+      )}
+
       <div className="relative aspect-square bg-muted">
         {currentImage ? (
           <canvas ref={canvasRef} className="h-full w-full" />
@@ -325,6 +339,22 @@ export function CompositeCard({
             />
             <span>{"Популярний"}</span>
           </label>
+        )}
+        {onTogglePreviewable && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onTogglePreviewable() }}
+            aria-label={isPreviewable ? "Зняти позначку превʼю" : "Зробити превʼю каталогу"}
+            className={cn(
+              "mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+              isPreviewable
+                ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            {isPreviewable ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            <span>{isPreviewable ? "Превʼю каталогу" : "Зробити превʼю"}</span>
+          </button>
         )}
       </div>
     </div>

@@ -17,6 +17,9 @@ interface RawProduct {
   price: number
   is_active: boolean
   is_popular: boolean
+  is_previewable: boolean
+  base_id: number
+  print_id: number
   created_at: string
   base_image_id: number | null
   zone_id: number | null
@@ -41,6 +44,9 @@ interface ProductWithImages {
   price: number
   is_active: boolean
   is_popular: boolean
+  is_previewable: boolean
+  base_id: number
+  print_id: number
   created_at: string
   base_image_id: number | null
   zone_id: number | null
@@ -51,6 +57,9 @@ interface ProductWithImages {
   multiZoneSelection?: MultiZoneEntry[]
   allowedPlacements: Array<{ imageId: string; zoneId: string }>
   initialPrimary: { imageId: string; zoneId: string } | null
+  allBaseImages: BaseImage[]
+  availableColors: Array<{ id: number; name: string; hex_code: string | null }>
+  currentColorId: number | null
 }
 
 interface BaseForForm {
@@ -118,6 +127,9 @@ export default function ProductsPage() {
           placements,
           allowedPlacements: [],
           initialPrimary: null,
+          allBaseImages: [],
+          availableColors: [],
+          currentColorId: null,
         }
 
         const { data: rawImages } = await supabase
@@ -164,6 +176,19 @@ export default function ProductsPage() {
 
         const base: CompositeBase = { id: String(p.bases.id), name: p.bases.name, images: filteredImages }
 
+        // Fetch palette for the base so the modal can offer a color switch.
+        const { data: baseColorsData } = await supabase
+          .from("base_colors")
+          .select("color_id, colors:color_id(id, name, hex_code)")
+          .eq("base_id", p.bases.id)
+
+        const availableColors = ((baseColorsData ?? []) as unknown as Array<{
+          color_id: number
+          colors: { id: number; name: string; hex_code: string | null } | null
+        }>)
+          .map((bc) => bc.colors)
+          .filter((c): c is { id: number; name: string; hex_code: string | null } => c != null)
+
         // Determine the primary (image, zone) pair initially chosen in the generator.
         const primaryImageId = p.base_image_id != null ? String(p.base_image_id) : null
         const primaryZoneId = p.zone_id != null ? String(p.zone_id) : null
@@ -180,6 +205,9 @@ export default function ProductsPage() {
           placements,
           allowedPlacements: [],
           initialPrimary,
+          allBaseImages: images,
+          availableColors,
+          currentColorId: productColorId,
         }
       })
     )
@@ -242,6 +270,44 @@ export default function ProductsPage() {
       .eq("id", productId)
     if (error) {
       setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, is_popular: current } : p)))
+    }
+  }
+
+  const handleTogglePreviewable = async (
+    productId: string,
+    baseId: number,
+    printId: number,
+    current: boolean
+  ) => {
+    const next = !current
+    const snapshot = products
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === productId) return { ...p, is_previewable: next }
+        if (next && p.base_id === baseId && p.print_id === printId) {
+          return { ...p, is_previewable: false }
+        }
+        return p
+      })
+    )
+    try {
+      if (next) {
+        // Turn siblings off first so the partial unique index stays happy.
+        const { error: offErr } = await supabase
+          .from("products")
+          .update({ is_previewable: false })
+          .eq("base_id", baseId)
+          .eq("print_id", printId)
+          .neq("id", productId)
+        if (offErr) throw offErr
+      }
+      const { error: selfErr } = await supabase
+        .from("products")
+        .update({ is_previewable: next })
+        .eq("id", productId)
+      if (selfErr) throw selfErr
+    } catch {
+      setProducts(snapshot)
     }
   }
 
@@ -351,6 +417,10 @@ export default function ProductsPage() {
                   isActive={product.is_active}
                   isPopular={product.is_popular}
                   onTogglePopular={() => handleTogglePopular(product.id, product.is_popular)}
+                  isPreviewable={product.is_previewable}
+                  onTogglePreviewable={() =>
+                    handleTogglePreviewable(product.id, product.base_id, product.print_id, product.is_previewable)
+                  }
                   printConfig={cardPrintConfig}
                   placements={product.placements}
                   multiZoneSelection={product.multiZoneSelection}
@@ -390,6 +460,9 @@ export default function ProductsPage() {
           initialConfig={constructorProduct.print_config}
           allowedPlacements={constructorProduct.allowedPlacements}
           initialPrimary={constructorProduct.initialPrimary}
+          allBaseImages={constructorProduct.allBaseImages}
+          availableColors={constructorProduct.availableColors}
+          initialColorId={constructorProduct.currentColorId}
           onClose={() => {
             setConstructorProduct(null)
             fetchData()

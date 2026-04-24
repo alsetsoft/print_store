@@ -36,6 +36,7 @@ type Product = {
   initialImageIndex: number
   placements: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }>
   colorId?: number | null
+  siblingColors?: { productId: number; colorId: number | null; hex: string | null; name: string | null }[]
 }
 
 interface CatalogPageClientProps {

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Package, Check, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useCart } from "@/lib/cart-context"
@@ -52,6 +53,7 @@ export function ProductDetailClient({
   placements,
   initialColorId,
 }: ProductDetailClientProps) {
+  const router = useRouter()
   const [selectedColorId, setSelectedColorId] = useState<number>(
     initialColorId && colorOptions.some(c => c.id === initialColorId)
       ? initialColorId
@@ -63,6 +65,58 @@ export function ProductDetailClient({
 
   const selectedColor = colorOptions.find((c) => c.id === selectedColorId) ?? colorOptions[0]
   const images = selectedColor?.images ?? []
+
+  // `placements` is keyed by the zone_ids of the color the product was saved with.
+  // Build a color-agnostic position map (imageIndex|zoneIndex → placement) and a
+  // per-color lookup so the print renders on every color variant.
+  const placementsByColor = useMemo(() => {
+    const zoneIds = Object.keys(placements)
+    if (zoneIds.length === 0 || colorOptions.length === 0) {
+      return new Map<number, typeof placements>()
+    }
+    // Identify the source color: the one whose zones match the stored placements.
+    const sourceColor =
+      colorOptions.find((c) =>
+        c.images.some((img) => img.zones.some((z) => zoneIds.includes(z.id))),
+      ) ?? colorOptions[0]
+
+    // Stable position key built from the source color's ordered images and zones.
+    const byPos = new Map<string, (typeof placements)[string]>()
+    sourceColor.images.forEach((img, iIdx) => {
+      img.zones.forEach((z, zIdx) => {
+        const pl = placements[z.id]
+        if (pl) byPos.set(`${iIdx}|${zIdx}`, pl)
+      })
+    })
+
+    // Project the position map onto every color's zone ids.
+    const out = new Map<number, typeof placements>()
+    for (const c of colorOptions) {
+      const rec: typeof placements = {}
+      c.images.forEach((img, iIdx) => {
+        img.zones.forEach((z, zIdx) => {
+          const pl = byPos.get(`${iIdx}|${zIdx}`)
+          if (pl) rec[z.id] = pl
+        })
+      })
+      out.set(c.id, rec)
+    }
+    return out
+  }, [colorOptions, placements])
+
+  const activePlacements = placementsByColor.get(selectedColorId) ?? placements
+
+  // Keep the ?color query param in sync with the current selection so the URL is
+  // shareable and reflects the visible state.
+  useEffect(() => {
+    if (!selectedColorId) return
+    const params = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
+    )
+    if (params.get("color") === String(selectedColorId)) return
+    params.set("color", String(selectedColorId))
+    router.replace(`/product/${product.id}?${params.toString()}`, { scroll: false })
+  }, [selectedColorId, product.id, router])
 
   // Determine price: size-specific price > product price
   const selectedSize = sizes.find((s) => s.id === selectedSizeId)
@@ -79,7 +133,7 @@ export function ProductDetailClient({
       imageUrl: firstImage?.url ?? null,
       printImageUrl,
       zones: firstImage?.zones,
-      placements: firstZone ? placements : undefined,
+      placements: firstZone ? activePlacements : undefined,
       colorName: selectedColor?.name ?? undefined,
       sizeName: selectedSize?.name ?? undefined,
     })
@@ -93,7 +147,7 @@ export function ProductDetailClient({
           <ProductPreview
             images={images}
             printImageUrl={printImageUrl}
-            placements={placements}
+            placements={activePlacements}
           />
         </div>
 
