@@ -39,7 +39,7 @@ export default async function ProductDetailPage({
   const { data: product } = await supabase
     .from("products")
     .select(
-      `id, name, description, price, base_id, print_id, is_active,
+      `id, name, description, price, base_id, print_id, is_active, hidden_color_ids,
        bases:base_id(id, name, description, price),
        print_designs:print_id(id, name, description, image_url)`
     )
@@ -184,14 +184,19 @@ export default async function ProductDetailPage({
     imagesByColor.set(key, arr)
   }
 
+  // Drop colors the admin hid for this specific product.
+  const hiddenColorIds = new Set((product.hidden_color_ids as number[] | null) ?? [])
+
   // Build color options with their images
-  const colorOptions = colors.map((color) => {
-    const imgs = imagesByColor.get(color.id) ?? imagesByColor.get(null) ?? []
-    return {
-      ...color,
-      images: imgs,
-    }
-  })
+  const colorOptions = colors
+    .filter((color) => !hiddenColorIds.has(color.id))
+    .map((color) => {
+      const imgs = imagesByColor.get(color.id) ?? imagesByColor.get(null) ?? []
+      return {
+        ...color,
+        images: imgs,
+      }
+    })
 
   // If no colors defined, use all images as a single "default" option
   if (colorOptions.length === 0 && allImages.length > 0) {

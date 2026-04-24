@@ -72,7 +72,7 @@ export async function fetchEnrichedProducts(
   let productQuery = supabase
     .from("products")
     .select(
-      `id, name, price, base_id, print_id, base_image_id, is_popular,
+      `id, name, price, base_id, print_id, base_image_id, is_popular, hidden_color_ids,
        bases:base_id(id, name, image_url, base_category_id, base_subcategory_id),
        print_designs:print_id(id, name, image_url)`,
       { count: count ? "exact" : undefined }
@@ -107,6 +107,7 @@ export async function fetchEnrichedProducts(
     base_id: number
     print_id: number
     base_image_id: number | null
+    hidden_color_ids: number[] | null
     bases: { id: number; name: string; image_url: string | null; base_category_id: number | null; base_subcategory_id: number | null } | null
     print_designs: { id: number; name: string; image_url: string | null } | null
   }>
@@ -270,10 +271,12 @@ export async function fetchEnrichedProducts(
       colorId,
       images,
       initialImageIndex,
-      siblingColors: (colorsByBase.get(p.base_id) ?? []).map((c) => ({
-        ...c,
-        productId: p.id,
-      })),
+      siblingColors: (() => {
+        const hidden = new Set(p.hidden_color_ids ?? [])
+        return (colorsByBase.get(p.base_id) ?? [])
+          .filter((c) => c.colorId == null || !hidden.has(c.colorId))
+          .map((c) => ({ ...c, productId: p.id }))
+      })(),
       placements: (() => {
         const raw = placementsByProduct.get(p.id) ?? {}
         const resolved: Record<string, { x: number; y: number; scale: number; is_mirrored: boolean; printImageUrl?: string }> = {}

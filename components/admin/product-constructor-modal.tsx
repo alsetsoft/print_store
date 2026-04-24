@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   X, ZoomIn, ZoomOut, RotateCcw, FlipHorizontal2,
-  Maximize2, Minimize2, Loader2, Check,
+  Maximize2, Minimize2, Loader2, Check, Eye, EyeOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client"
@@ -43,6 +43,8 @@ interface ProductConstructorModalProps {
   availableColors?: Array<{ id: number; name: string; hex_code: string | null }>
   /** Preview color the product currently uses (derived from product.base_image_id). */
   initialColorId?: number | null
+  /** Colors currently hidden from catalog card swatches + /product color picker. */
+  initialHiddenColorIds?: number[]
   onClose: () => void
   onSaved: (productId: string, config: PrintConfig) => void
 }
@@ -77,12 +79,29 @@ export function ProductConstructorModal({
   allBaseImages,
   availableColors,
   initialColorId,
+  initialHiddenColorIds,
   onClose,
   onSaved,
 }: ProductConstructorModalProps) {
   // Currently selected preview color. Drives image filtering + what gets written
   // back to `products.base_image_id` on save.
   const [currentColorId, setCurrentColorId] = useState<number | null>(initialColorId ?? null)
+  // Colors hidden from the storefront catalog for this specific product.
+  const [hiddenColorIds, setHiddenColorIds] = useState<Set<number>>(
+    () => new Set(initialHiddenColorIds ?? []),
+  )
+
+  const toggleColorHidden = useCallback((colorId: number) => {
+    setHiddenColorIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(colorId)) {
+        next.delete(colorId)
+      } else {
+        next.add(colorId)
+      }
+      return next
+    })
+  }, [])
 
   // Full image set across all colors, when the parent supplied it. Falls back to
   // the color-scoped `base.images` (legacy callers).
@@ -654,6 +673,9 @@ export function ProductConstructorModal({
       }
       if (currentImage) productUpdate.base_image_id = parseInt(currentImage.id)
       if (selectedZoneId) productUpdate.zone_id = parseInt(selectedZoneId)
+      // Never persist the preview color itself as hidden — defensive, since the
+      // UI already blocks toggling it.
+      productUpdate.hidden_color_ids = [...hiddenColorIds].filter((id) => id !== currentColorId)
       if (Object.keys(productUpdate).length > 0) {
         await supabase.from("products").update(productUpdate).eq("id", parseInt(productId))
       }
@@ -725,38 +747,89 @@ export function ProductConstructorModal({
                 <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {"Колір превʼю"}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-3 gap-2">
                   {availableColors.map((c) => {
                     const isActive = currentColorId === c.id
+                    const isHidden = hiddenColorIds.has(c.id)
                     return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => handleColorChange(c.id)}
-                        title={c.name}
-                        aria-label={c.name}
-                        className={cn(
-                          "relative h-8 w-8 rounded-full border transition-all",
-                          isActive
-                            ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-card"
-                            : "border-border hover:border-primary/60"
-                        )}
-                        style={{ backgroundColor: c.hex_code ?? "transparent" }}
-                      >
-                        {isActive && (
-                          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
-                            <Check className="h-2 w-2" />
-                          </span>
-                        )}
-                      </button>
+                      <div key={c.id} className="flex flex-col items-center gap-1">
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => handleColorChange(c.id)}
+                            title={c.name}
+                            aria-label={c.name}
+                            className={cn(
+                              "relative h-9 w-9 rounded-full border transition-all",
+                              isActive
+                                ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-card"
+                                : "border-border hover:border-primary/60",
+                              isHidden && !isActive && "opacity-40",
+                            )}
+                            style={{ backgroundColor: c.hex_code ?? "transparent" }}
+                          >
+                            {isActive && (
+                              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                                <Check className="h-2 w-2" />
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (isActive) return
+                              toggleColorHidden(c.id)
+                            }}
+                            disabled={isActive}
+                            title={
+                              isActive
+                                ? "Колір превʼю завжди показується"
+                                : isHidden
+                                  ? "Показати в каталозі"
+                                  : "Сховати з каталогу"
+                            }
+                            aria-label={
+                              isActive
+                                ? "Колір превʼю завжди показується"
+                                : isHidden
+                                  ? "Показати в каталозі"
+                                  : "Сховати з каталогу"
+                            }
+                            className={cn(
+                              "absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card shadow-sm transition-colors",
+                              isActive
+                                ? "cursor-not-allowed opacity-40"
+                                : isHidden
+                                  ? "text-muted-foreground hover:bg-muted"
+                                  : "text-primary hover:bg-primary/10",
+                            )}
+                          >
+                            {isHidden
+                              ? <EyeOff className="h-2.5 w-2.5" />
+                              : <Eye className="h-2.5 w-2.5" />}
+                          </button>
+                        </div>
+                        <span
+                          className={cn(
+                            "max-w-full truncate text-[10px] leading-tight",
+                            isActive
+                              ? "font-medium text-foreground"
+                              : isHidden
+                                ? "text-muted-foreground line-through"
+                                : "text-muted-foreground",
+                          )}
+                          title={c.name}
+                        >
+                          {c.name}
+                        </span>
+                      </div>
                     )
                   })}
                 </div>
-                {currentColorId != null && (
-                  <p className="mt-2 truncate text-[11px] text-muted-foreground">
-                    {availableColors.find((c) => c.id === currentColorId)?.name ?? ""}
-                  </p>
-                )}
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  {"Натисніть на око щоб приховати колір з каталогу"}
+                </p>
               </div>
             )}
 
@@ -866,23 +939,11 @@ export function ProductConstructorModal({
                   <ZoomIn className="h-3.5 w-3.5" />
                 </button>
               </div>
+              <div className="mt-2">
 
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => setPrintFlipped((f) => !f)}
-                  className={cn(
-                    "flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs transition-all",
-                    printFlipped
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  <FlipHorizontal2 className="h-3.5 w-3.5" />
-                  {"\u0414\u0437\u0435\u0440\u043A\u0430\u043B\u043E"}
-                </button>
                 <button
                   onClick={handleReset}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   {"\u0421\u043A\u0438\u043D\u0443\u0442\u0438"}

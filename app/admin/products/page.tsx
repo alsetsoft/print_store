@@ -18,6 +18,7 @@ interface RawProduct {
   is_active: boolean
   is_popular: boolean
   is_previewable: boolean
+  hidden_color_ids: number[] | null
   base_id: number
   print_id: number
   created_at: string
@@ -463,6 +464,7 @@ export default function ProductsPage() {
           allBaseImages={constructorProduct.allBaseImages}
           availableColors={constructorProduct.availableColors}
           initialColorId={constructorProduct.currentColorId}
+          initialHiddenColorIds={constructorProduct.hidden_color_ids ?? []}
           onClose={() => {
             setConstructorProduct(null)
             fetchData()
