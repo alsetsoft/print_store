@@ -21,6 +21,7 @@ export function CartPageClient() {
   const router = useRouter()
   const { items, totalItems, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [pendingClear, setPendingClear] = useState(false)
 
   if (items.length === 0) {
     return (
@@ -59,7 +60,7 @@ export function CartPageClient() {
               <span className="font-medium text-foreground">{totalItems}</span>
             </p>
             <button
-              onClick={clearCart}
+              onClick={() => setPendingClear(true)}
               className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-destructive hover:underline"
             >
               {"\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043a\u043e\u0448\u0438\u043a"}
@@ -242,6 +243,30 @@ export function CartPageClient() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingClear}
+        onOpenChange={setPendingClear}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{"\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438 \u043a\u043e\u0448\u0438\u043a?"}</AlertDialogTitle>
+            <AlertDialogDescription>{"\u0423\u0441\u0456 \u0442\u043e\u0432\u0430\u0440\u0438 \u0431\u0443\u0434\u0443\u0442\u044c \u0432\u0438\u0434\u0430\u043b\u0435\u043d\u0456 \u0437 \u043a\u043e\u0448\u0438\u043a\u0430. \u0426\u044e \u0434\u0456\u044e \u043d\u0435\u043c\u043e\u0436\u043b\u0438\u0432\u043e \u0441\u043a\u0430\u0441\u0443\u0432\u0430\u0442\u0438."}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{"\u0421\u043a\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                clearCart()
+                setPendingClear(false)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {"\u041e\u0447\u0438\u0441\u0442\u0438\u0442\u0438"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={pendingDelete !== null}
