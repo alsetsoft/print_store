@@ -10,6 +10,7 @@ import { toast } from "sonner"
 
 import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/lib/auth-context"
+import { generateCompositePreview } from "@/lib/composite-preview"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +24,7 @@ import {
   getNovaPoshtaWarehouses,
   createOrder,
   generatePaymentData,
+  getCartDebugInfo,
 } from "./actions"
 
 // ── Schema ──
@@ -164,6 +166,44 @@ export function CheckoutClient() {
 
     setSubmitting(true)
     try {
+      // Composite a print-on-base preview for product items so the order list
+      // shows what the customer saw, not just the blank base photo.
+      const itemsForOrder = await Promise.all(
+        items.map(async (item) => {
+          let previewDataUrl = item.previewDataUrl
+          if (
+            !previewDataUrl &&
+            item.type === "product" &&
+            item.imageUrl &&
+            item.printImageUrl &&
+            item.zones &&
+            item.zones.length > 0
+          ) {
+            try {
+              previewDataUrl = await generateCompositePreview({
+                baseImageUrl: item.imageUrl,
+                printImageUrl: item.printImageUrl,
+                zones: item.zones,
+                placements: item.placements,
+              }) ?? undefined
+            } catch {
+              // Fall back to base image on failure.
+            }
+          }
+          return {
+            id: item.id,
+            type: item.type,
+            name: item.name,
+            price: item.price,
+            imageUrl: item.imageUrl,
+            quantity: item.quantity,
+            colorName: item.colorName,
+            sizeName: item.sizeName,
+            previewDataUrl,
+          }
+        }),
+      )
+
       const { orderId, orderNumber } = await createOrder(
         {
           customerName: values.customerName,
@@ -175,20 +215,34 @@ export function CheckoutClient() {
           npWarehouseRef: String(selectedWarehouse.id),
           npWarehouseName: selectedWarehouse.name,
         },
-        items.map((item) => ({
-          id: item.id,
-          type: item.type,
-          name: item.name,
-          price: item.price,
-          imageUrl: item.imageUrl,
-          quantity: item.quantity,
-          colorName: item.colorName,
-          sizeName: item.sizeName,
-          previewDataUrl: item.previewDataUrl,
-        }))
+        itemsForOrder,
       )
 
       const { data, signature } = await generatePaymentData(orderId, orderNumber, totalPrice)
+
+      try {
+        const debugInfo = await getCartDebugInfo(
+          items.map((i) => ({
+            lineKey: i.lineKey,
+            id: i.id,
+            type: i.type,
+            name: i.name,
+            price: i.price,
+            quantity: i.quantity,
+            colorName: i.colorName,
+            sizeName: i.sizeName,
+            constructorBaseId: i.constructorState?.baseId,
+          })),
+        )
+        console.log("[cart @ payment]", {
+          orderId,
+          orderNumber,
+          totalPrice,
+          items: debugInfo,
+        })
+      } catch (logErr) {
+        console.error("[cart @ payment] debug log failed:", logErr)
+      }
 
       clearCart()
 

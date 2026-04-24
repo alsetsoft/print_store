@@ -106,6 +106,143 @@ export async function createOrder(formData: OrderFormData, cartItems: CartItemFo
   return { orderId: order.id, orderNumber: order.order_number }
 }
 
+export interface CartDebugItem {
+  lineKey: string
+  id: string
+  type: string
+  name: string
+  price: number | null
+  quantity: number
+  colorName?: string
+  sizeName?: string
+  constructorBaseId?: string
+}
+
+export interface CartDebugInfo {
+  lineKey: string
+  type: string
+  name: string
+  price: number | null
+  quantity: number
+  colorName?: string
+  sizeName?: string
+  product?: { id: number; url: string }
+  base?: { id: number; name: string | null; url: string; imageUrl: string | null }
+  print?: { id: number; name: string | null; url: string; imageUrl: string | null }
+}
+
+export async function getCartDebugInfo(cartItems: CartDebugItem[]): Promise<CartDebugInfo[]> {
+  const supabase = await createClient()
+
+  const productIds = cartItems
+    .filter((i) => i.type === "product")
+    .map((i) => parseInt(i.id))
+    .filter((n) => !isNaN(n))
+
+  const baseIdsFromBase = cartItems
+    .filter((i) => i.type === "base")
+    .map((i) => parseInt(i.id))
+    .filter((n) => !isNaN(n))
+  const baseIdsFromCustom = cartItems
+    .filter((i) => i.type === "custom" && i.constructorBaseId)
+    .map((i) => parseInt(i.constructorBaseId!))
+    .filter((n) => !isNaN(n))
+
+  type ProductRow = {
+    id: number
+    base_id: number | null
+    print_id: number | null
+    bases: { id: number; name: string; image_url: string | null } | null
+    print_designs: { id: number; name: string; image_url: string | null } | null
+  }
+
+  const productsMap = new Map<number, ProductRow>()
+  if (productIds.length > 0) {
+    const { data } = await supabase
+      .from("products")
+      .select(
+        "id, base_id, print_id, bases:base_id(id, name, image_url), print_designs:print_id(id, name, image_url)",
+      )
+      .in("id", productIds)
+    for (const p of (data ?? []) as unknown as ProductRow[]) productsMap.set(p.id, p)
+  }
+
+  const basesMap = new Map<number, { id: number; name: string; image_url: string | null }>()
+  for (const p of productsMap.values()) {
+    if (p.bases) basesMap.set(p.bases.id, p.bases)
+  }
+  const remainingBaseIds = [...new Set([...baseIdsFromBase, ...baseIdsFromCustom])].filter(
+    (id) => !basesMap.has(id),
+  )
+  if (remainingBaseIds.length > 0) {
+    const { data } = await supabase
+      .from("bases")
+      .select("id, name, image_url")
+      .in("id", remainingBaseIds)
+    for (const b of (data ?? []) as Array<{ id: number; name: string; image_url: string | null }>) {
+      basesMap.set(b.id, b)
+    }
+  }
+
+  return cartItems.map((item) => {
+    const out: CartDebugInfo = {
+      lineKey: item.lineKey,
+      type: item.type,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      colorName: item.colorName,
+      sizeName: item.sizeName,
+    }
+
+    if (item.type === "product") {
+      const productId = parseInt(item.id)
+      out.product = { id: productId, url: `/product/${productId}` }
+      const prod = productsMap.get(productId)
+      if (prod?.bases) {
+        out.base = {
+          id: prod.bases.id,
+          name: prod.bases.name,
+          url: `/base/${prod.bases.id}`,
+          imageUrl: prod.bases.image_url,
+        }
+      }
+      if (prod?.print_designs) {
+        out.print = {
+          id: prod.print_designs.id,
+          name: prod.print_designs.name,
+          url: `/print/${prod.print_designs.id}`,
+          imageUrl: prod.print_designs.image_url,
+        }
+      }
+    } else if (item.type === "base") {
+      const baseId = parseInt(item.id)
+      if (!isNaN(baseId)) {
+        const b = basesMap.get(baseId)
+        out.base = {
+          id: baseId,
+          name: b?.name ?? null,
+          url: `/base/${baseId}`,
+          imageUrl: b?.image_url ?? null,
+        }
+      }
+    } else if (item.type === "custom" && item.constructorBaseId) {
+      const baseId = parseInt(item.constructorBaseId)
+      if (!isNaN(baseId)) {
+        const b = basesMap.get(baseId)
+        out.base = {
+          id: baseId,
+          name: b?.name ?? null,
+          url: `/base/${baseId}`,
+          imageUrl: b?.image_url ?? null,
+        }
+      }
+    }
+
+    return out
+  })
+}
+
 export async function generatePaymentData(orderId: string, orderNumber: string, amount: number) {
   const h = await headers()
   const host = h.get("host") ?? "localhost:3000"

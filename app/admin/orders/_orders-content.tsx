@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Search, ShoppingCart, Loader2, ChevronDown, ChevronUp, Package, User, Phone, Mail, MapPin, MessageSquare, CreditCard, Image as ImageIcon } from "lucide-react"
+import { Search, ShoppingCart, Loader2, ChevronDown, ChevronUp, Package, User, Phone, Mail, MapPin, MessageSquare, CreditCard } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateOrderStatus } from "./actions"
+import { OrderItemPreview } from "./_order-item-preview"
 import { toast } from "sonner"
 
 interface OrderItem {
@@ -364,19 +365,17 @@ export default function OrdersContent() {
                           </h4>
                           <div className="space-y-3">
                             {order.items.map((item) => {
-                              const imgSrc = item.item_type === "custom" && item.preview_data?.dataUrl
-                                ? item.preview_data.dataUrl
-                                : item.image_url
                               return (
                                 <div key={item.id} className="flex items-center gap-3 rounded-lg border border-border bg-background p-3">
                                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-                                    {imgSrc ? (
-                                      <img src={imgSrc} alt={item.name} className="h-full w-full object-cover" />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center">
-                                        <ImageIcon className="h-5 w-5 text-muted-foreground/50" />
-                                      </div>
-                                    )}
+                                    <OrderItemPreview
+                                      itemType={item.item_type}
+                                      itemId={item.item_id}
+                                      imageUrl={item.image_url}
+                                      colorName={item.color_name}
+                                      previewDataUrl={item.preview_data?.dataUrl ?? null}
+                                      name={item.name}
+                                    />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
