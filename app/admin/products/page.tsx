@@ -16,6 +16,7 @@ interface RawProduct {
   description: string | null
   price: number
   is_active: boolean
+  is_popular: boolean
   created_at: string
   base_image_id: number | null
   zone_id: number | null
@@ -39,6 +40,7 @@ interface ProductWithImages {
   description: string | null
   price: number
   is_active: boolean
+  is_popular: boolean
   created_at: string
   base_image_id: number | null
   zone_id: number | null
@@ -231,6 +233,18 @@ export default function ProductsPage() {
     fetchData()
   }
 
+  const handleTogglePopular = async (productId: string, current: boolean) => {
+    const next = !current
+    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, is_popular: next } : p)))
+    const { error } = await supabase
+      .from("products")
+      .update({ is_popular: next })
+      .eq("id", productId)
+    if (error) {
+      setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, is_popular: current } : p)))
+    }
+  }
+
   // Update print_config in local state without full refetch
   const handleSaved = (productId: string, config: PrintConfig) => {
     setProducts((prev) =>
@@ -335,6 +349,8 @@ export default function ProductsPage() {
                   print={product.print}
                   productName={product.name}
                   isActive={product.is_active}
+                  isPopular={product.is_popular}
+                  onTogglePopular={() => handleTogglePopular(product.id, product.is_popular)}
                   printConfig={cardPrintConfig}
                   placements={product.placements}
                   multiZoneSelection={product.multiZoneSelection}

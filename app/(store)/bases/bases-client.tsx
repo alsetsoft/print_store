@@ -10,6 +10,16 @@ import { UA } from "@/lib/translations"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { DEFAULT_SORT, type SortKey } from "@/lib/sort"
+
+const SORT_LABELS: Record<SortKey, string> = {
+  popular: UA.store.sortPopular,
+  newest: UA.store.sortNewest,
+  "price-asc": UA.store.sortPriceAsc,
+  "price-desc": UA.store.sortPriceDesc,
+}
+
+const BASES_SORT_KEYS: SortKey[] = ["popular", "newest", "price-asc", "price-desc"]
 
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number }
@@ -35,6 +45,7 @@ interface BasesPageClientProps {
   initialCategoryId: number | null
   initialSubcategoryId: number | null
   initialSearch: string
+  initialSort: SortKey
 }
 
 export function BasesPageClient({
@@ -47,6 +58,7 @@ export function BasesPageClient({
   initialCategoryId,
   initialSubcategoryId,
   initialSearch,
+  initialSort,
 }: BasesPageClientProps) {
   const router = useRouter()
 
@@ -63,27 +75,29 @@ export function BasesPageClient({
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   const buildUrl = useCallback(
-    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number }) => {
+    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number; sort?: SortKey }) => {
       const params = new URLSearchParams()
 
       const cat = overrides.category !== undefined ? overrides.category : initialCategoryId
       const sub = overrides.subcategory !== undefined ? overrides.subcategory : initialSubcategoryId
       const q = overrides.q !== undefined ? overrides.q : initialSearch
       const p = overrides.page ?? 1
+      const s = overrides.sort !== undefined ? overrides.sort : initialSort
 
       if (cat) params.set("category", String(cat))
       if (sub) params.set("subcategory", String(sub))
       if (q) params.set("q", q)
       if (p > 1) params.set("page", String(p))
+      if (s && s !== DEFAULT_SORT) params.set("sort", s)
 
       const qs = params.toString()
       return `/bases${qs ? `?${qs}` : ""}`
     },
-    [initialCategoryId, initialSubcategoryId, initialSearch]
+    [initialCategoryId, initialSubcategoryId, initialSearch, initialSort]
   )
 
   const navigate = useCallback(
-    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number }) => {
+    (overrides: { category?: number | null; subcategory?: number | null; q?: string; page?: number; sort?: SortKey }) => {
       router.push(buildUrl(overrides))
     },
     [router, buildUrl]
@@ -205,18 +219,24 @@ export function BasesPageClient({
                 onClick={() => setSortOpen(!sortOpen)}
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
               >
-                {UA.store.sortBy}: <span className="font-medium text-foreground">{UA.store.sortPopular}</span>
+                {UA.store.sortBy}: <span className="font-medium text-foreground">{SORT_LABELS[initialSort]}</span>
                 <ChevronDown className={cn("size-4 transition-transform", sortOpen && "rotate-180")} />
               </button>
               {sortOpen && (
                 <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-xl border bg-card p-1 shadow-lg">
-                  {[UA.store.sortPopular, UA.store.sortNewest, UA.store.sortPriceAsc, UA.store.sortPriceDesc].map((label) => (
+                  {BASES_SORT_KEYS.map((key) => (
                     <button
-                      key={label}
-                      onClick={() => setSortOpen(false)}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
+                      key={key}
+                      onClick={() => {
+                        setSortOpen(false)
+                        navigate({ sort: key, page: 1 })
+                      }}
+                      className={cn(
+                        "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                        initialSort === key && "bg-accent font-medium"
+                      )}
                     >
-                      {label}
+                      {SORT_LABELS[key]}
                     </button>
                   ))}
                 </div>

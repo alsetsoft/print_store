@@ -5,6 +5,7 @@ import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3, Star, Link2, ChevronLef
 import { createBase, updateBase, decodeLabel } from "@/app/admin/parameters/actions"
 import { createClient } from "@/lib/supabase/client"
 import { ZoneEditorModal, Zone } from "./zone-editor-modal"
+import { Switch } from "@/components/ui/switch"
 
 interface BaseFormDialogProps {
   open: boolean
@@ -43,6 +44,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
   const [selectedColorIds, setSelectedColorIds] = useState<number[]>([])
   const [selectedSizeIds, setSelectedSizeIds] = useState<number[]>([])
   const [articleId, setArticleId] = useState("")
+  const [isPopular, setIsPopular] = useState(false)
   // Images organized by color: colorId -> array of images
   const [imagesByColor, setImagesByColor] = useState<Record<number, UploadedImage[]>>({})
   const [activeColorTab, setActiveColorTab] = useState<number | null>(null)
@@ -115,6 +117,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       setSubcategoryId(item.base_subcategory_id?.toString() || "")
       setPrice(item.price?.toString() || "")
       setArticleId(item.article_id?.toString() || "")
+      setIsPopular(Boolean(item.is_popular))
       // Load colors from base_colors junction table
       const loadColors = async () => {
         const { data } = await supabase
@@ -210,6 +213,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       setArticleId("")
       setImagesByColor({})
       setActiveColorTab(null)
+      setIsPopular(false)
     }
     setErrors({})
   }, [item, open])
@@ -461,6 +465,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
       formData.append("size_ids", JSON.stringify(selectedSizeIds))
       formData.append("article_id", articleId)
       formData.append("images_with_zones", JSON.stringify(imagesWithZones))
+      formData.append("is_popular", isPopular ? "1" : "")
       if (item) {
         formData.append("id", item.id as string)
         await updateBase(formData)
@@ -687,6 +692,17 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                 />
                 {errors.price && <p className="mt-1 text-xs text-destructive">{errors.price}</p>}
               </div>
+            </div>
+
+            {/* Popular flag */}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{"Популярна"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {"Показувати першою у сортуванні «Популярне»"}
+                </p>
+              </div>
+              <Switch checked={isPopular} onCheckedChange={setIsPopular} />
             </div>
 
             {/* Images per color */}

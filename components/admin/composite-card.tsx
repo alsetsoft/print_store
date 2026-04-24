@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { ChevronLeft, ChevronRight, X, Trash2 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import type { PrintConfig } from "@/components/admin/product-constructor-modal"
 
@@ -68,6 +69,8 @@ export function CompositeCard({
   onDelete,
   onClick,
   isActive,
+  isPopular,
+  onTogglePopular,
 }: {
   base: CompositeBase
   print: CompositePrint
@@ -80,6 +83,8 @@ export function CompositeCard({
   onDelete?: () => void
   onClick?: () => void
   isActive?: boolean
+  isPopular?: boolean
+  onTogglePopular?: () => void
 }) {
   // If printConfig has a saved imageIndex, start there
   const [imgIndex, setImgIndex] = useState(printConfig?.imageIndex ?? 0)
@@ -267,7 +272,7 @@ export function CompositeCard({
         <button
           onClick={(e) => { e.stopPropagation(); onDelete() }}
           className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow transition-opacity group-hover:opacity-100"
-          title="Видалити"
+          title={"Видалити"}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -307,6 +312,19 @@ export function CompositeCard({
         {productName && <p className="text-xs text-muted-foreground">{base.name} + {print.name}</p>}
         {currentImage && (
           <p className="mt-0.5 text-xs text-muted-foreground">{currentImage.label}</p>
+        )}
+        {onTogglePopular && (
+          <label
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-foreground"
+          >
+            <Checkbox
+              checked={Boolean(isPopular)}
+              onCheckedChange={() => onTogglePopular()}
+              aria-label={"Позначити як популярне"}
+            />
+            <span>{"Популярний"}</span>
+          </label>
         )}
       </div>
     </div>

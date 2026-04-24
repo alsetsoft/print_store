@@ -10,6 +10,7 @@ export async function createPrint(formData: FormData) {
   const subcategoryId = formData.get("subcategory_id") as string
   const colorId = formData.get("color_id") as string
   const imageUrl = formData.get("image_url") as string
+  const isPopular = Boolean(formData.get("is_popular"))
 
   const { error } = await supabase.from("print_designs").insert({
     name,
@@ -18,6 +19,7 @@ export async function createPrint(formData: FormData) {
     print_category_id: categoryId ? parseInt(categoryId) : null,
     print_subcategory_id: subcategoryId ? parseInt(subcategoryId) : null,
     image_url: imageUrl || null,
+    is_popular: isPopular,
   })
 
   if (error) {
@@ -36,6 +38,7 @@ export async function updatePrint(formData: FormData) {
   const categoryId = formData.get("category_id") as string
   const subcategoryId = formData.get("subcategory_id") as string
   const imageUrl = formData.get("image_url") as string
+  const isPopular = Boolean(formData.get("is_popular"))
 
   const { error } = await supabase
     .from("print_designs")
@@ -46,6 +49,7 @@ export async function updatePrint(formData: FormData) {
       print_category_id: categoryId ? parseInt(categoryId) : null,
       print_subcategory_id: subcategoryId ? parseInt(subcategoryId) : null,
       image_url: imageUrl || null,
+      is_popular: isPopular,
     })
     .eq("id", id)
 

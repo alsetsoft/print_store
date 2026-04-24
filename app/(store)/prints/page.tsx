@@ -2,6 +2,9 @@ import type { Metadata } from "next"
 import { createClient } from "@/lib/supabase/server"
 import { PrintsPageClient } from "./prints-client"
 import { StoreBreadcrumb, type BreadcrumbSegment } from "@/components/store/store-breadcrumb"
+import { applySort, parseSort } from "@/lib/sort"
+
+const PRINTS_SORT_OPTIONS = ["popular", "newest"] as const
 
 const PAGE_SIZE = 24
 
@@ -19,6 +22,7 @@ export default async function PrintsPage({
     subcategory?: string
     q?: string
     page?: string
+    sort?: string
   }>
 }) {
   const params = await searchParams
@@ -28,6 +32,7 @@ export default async function PrintsPage({
   const categoryId = params.category ? parseInt(params.category) : null
   const subcategoryId = params.subcategory ? parseInt(params.subcategory) : null
   const searchQuery = params.q?.trim() ?? ""
+  const sort = parseSort(params.sort, PRINTS_SORT_OPTIONS)
 
   // Fetch categories & subcategories
   const [categoriesRes, subcategoriesRes] = await Promise.all([
@@ -41,7 +46,7 @@ export default async function PrintsPage({
   // Build filtered print_designs query
   let query = supabase
     .from("print_designs")
-    .select("id, name, description, image_url, print_category_id, print_subcategory_id", { count: "exact" })
+    .select("id, name, description, image_url, print_category_id, print_subcategory_id, is_popular", { count: "exact" })
 
   if (subcategoryId) {
     query = query.eq("print_subcategory_id", subcategoryId)
@@ -64,9 +69,9 @@ export default async function PrintsPage({
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
-  const { data: prints, count: totalCount } = await query
-    .order("created_at", { ascending: false })
-    .range(from, to)
+  const sortedQuery = applySort(query, sort)
+
+  const { data: prints, count: totalCount } = await sortedQuery.range(from, to)
 
   const printDesigns = (prints ?? []) as Array<{
     id: number
@@ -109,6 +114,7 @@ export default async function PrintsPage({
         initialCategoryId={categoryId}
         initialSubcategoryId={subcategoryId}
         initialSearch={searchQuery}
+        initialSort={sort}
       />
     </div>
   )

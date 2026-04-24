@@ -49,6 +49,7 @@ export async function createBase(formData: FormData) {
   const sizeIds: number[] = sizeIdsRaw ? JSON.parse(sizeIdsRaw) : []
   const imagesWithZonesRaw = formData.get("images_with_zones") as string
   const imagesWithZones: ImageWithZones[] = imagesWithZonesRaw ? JSON.parse(imagesWithZonesRaw) : []
+  const isPopular = Boolean(formData.get("is_popular"))
 
   const { data: base, error } = await supabase
     .from("bases")
@@ -60,6 +61,7 @@ export async function createBase(formData: FormData) {
       price: price ? parseFloat(price) : 0,
       article_id: articleId ? parseInt(articleId) : null,
       image_url: imagesWithZones[0]?.url || null,
+      is_popular: isPopular,
     })
     .select("id")
     .single()
@@ -130,6 +132,7 @@ export async function updateBase(formData: FormData) {
   const sizeIds: number[] = sizeIdsRaw ? JSON.parse(sizeIdsRaw) : []
   const imagesWithZonesRaw = formData.get("images_with_zones") as string
   const imagesWithZones: ImageWithZones[] = imagesWithZonesRaw ? JSON.parse(imagesWithZonesRaw) : []
+  const isPopular = Boolean(formData.get("is_popular"))
 
   const { error } = await supabase
     .from("bases")
@@ -141,6 +144,7 @@ export async function updateBase(formData: FormData) {
       price: price ? parseFloat(price) : 0,
       article_id: articleId ? parseInt(articleId) : null,
       image_url: imagesWithZones[0]?.url || null,
+      is_popular: isPopular,
     })
     .eq("id", id)
 

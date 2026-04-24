@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { applySort, DEFAULT_SORT, type SortKey } from "@/lib/sort"
 
 function decodeLabel(raw: string): string {
   const idx = raw.indexOf("__lbl__")
@@ -32,9 +33,10 @@ export async function fetchEnrichedProducts(
     limit?: number
     offset?: number
     count?: boolean
+    sort?: SortKey
   }
 ): Promise<{ products: EnrichedProduct[]; totalCount: number }> {
-  const { baseIds = null, productIds: filterProductIds = null, printCategoryId = null, search, limit = 20, offset = 0, count = false } = opts ?? {}
+  const { baseIds = null, productIds: filterProductIds = null, printCategoryId = null, search, limit = 20, offset = 0, count = false, sort = DEFAULT_SORT } = opts ?? {}
 
   // Short-circuit if baseIds is an empty array (no matching bases)
   if (baseIds !== null && baseIds.length === 0) {
@@ -62,7 +64,7 @@ export async function fetchEnrichedProducts(
   let productQuery = supabase
     .from("products")
     .select(
-      `id, name, price, base_id, print_id, base_image_id,
+      `id, name, price, base_id, print_id, base_image_id, is_popular,
        bases:base_id(id, name, image_url, base_category_id, base_subcategory_id),
        print_designs:print_id(id, name, image_url)`,
       { count: count ? "exact" : undefined }
@@ -85,9 +87,9 @@ export async function fetchEnrichedProducts(
     productQuery = productQuery.ilike("name", `%${search}%`)
   }
 
-  const { data: rawProducts, count: totalCount } = await productQuery
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1)
+  const sortedQuery = applySort(productQuery, sort)
+
+  const { data: rawProducts, count: totalCount } = await sortedQuery.range(offset, offset + limit - 1)
 
   const products = (rawProducts ?? []) as unknown as Array<{
     id: number

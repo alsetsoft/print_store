@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server"
 import { fetchEnrichedProducts } from "@/lib/supabase/queries"
 import { CatalogPageClient } from "./catalog-client"
 import { StoreBreadcrumb, type BreadcrumbSegment } from "@/components/store/store-breadcrumb"
+import { parseSort } from "@/lib/sort"
+
+const CATALOG_SORT_OPTIONS = ["popular", "newest", "price-asc", "price-desc"] as const
 
 const PAGE_SIZE = 20
 
@@ -21,6 +24,7 @@ export default async function CatalogPage({
     print_category?: string
     q?: string
     page?: string
+    sort?: string
   }>
 }) {
   const params = await searchParams
@@ -31,6 +35,7 @@ export default async function CatalogPage({
   const subcategoryId = params.subcategory ? parseInt(params.subcategory) : null
   const printCategoryId = params.print_category ? parseInt(params.print_category) : null
   const searchQuery = params.q?.trim() ?? ""
+  const sort = parseSort(params.sort, CATALOG_SORT_OPTIONS)
 
   // Fetch categories, subcategories & groups (small, always needed)
   const [categoriesRes, subcategoriesRes, groupsRes, printCategoriesRes] = await Promise.all([
@@ -98,6 +103,7 @@ export default async function CatalogPage({
           initialSearch={searchQuery}
           printCategories={printCategories}
           initialPrintCategoryId={printCategoryId}
+          initialSort={sort}
         />
       </div>
     )
@@ -112,6 +118,7 @@ export default async function CatalogPage({
     limit: PAGE_SIZE,
     offset: from,
     count: true,
+    sort,
   })
 
   // Build breadcrumb
@@ -149,6 +156,7 @@ export default async function CatalogPage({
         initialSearch={searchQuery}
         printCategories={printCategories}
         initialPrintCategoryId={printCategoryId}
+        initialSort={sort}
       />
     </div>
   )

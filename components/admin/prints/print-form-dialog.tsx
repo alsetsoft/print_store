@@ -5,6 +5,7 @@ import { X, Loader2, ImageIcon, Trash2 } from "lucide-react"
 import { createPrint, updatePrint } from "@/app/admin/prints/actions"
 import { createClient } from "@/lib/supabase/client"
 import { uploadImage } from "@/lib/upload"
+import { Switch } from "@/components/ui/switch"
 
 interface Print {
   id: string
@@ -12,6 +13,7 @@ interface Print {
   description: string | null
   price: number | null
   image_url: string | null
+  is_popular?: boolean | null
   print_categories: { id: string; name: string } | null
   print_subcategories: { id: string; name: string } | null
 }
@@ -42,6 +44,7 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
   const [subcategoryId, setSubcategoryId] = useState("")
   const [colorId, setColorId] = useState("")
   const [imageUrl, setImageUrl] = useState("")
+  const [isPopular, setIsPopular] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Category[]>([])
   const [colors, setColors] = useState<Color[]>([])
@@ -61,6 +64,7 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       setColorId("")
       setImageUrl(print.image_url || "")
       setPreviewUrl(print.image_url || null)
+      setIsPopular(Boolean(print.is_popular))
     } else {
       setName("")
       setDescription("")
@@ -70,6 +74,7 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       setColorId("")
       setImageUrl("")
       setPreviewUrl(null)
+      setIsPopular(false)
     }
   }, [print, open])
 
@@ -150,6 +155,7 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       formData.append("subcategory_id", subcategoryId)
       formData.append("color_id", colorId)
       formData.append("image_url", imageUrl)
+      formData.append("is_popular", isPopular ? "1" : "")
 
       if (print) {
         formData.append("id", print.id)
@@ -237,6 +243,17 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
                 placeholder="0"
                 className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
+            </div>
+
+            {/* Popular flag */}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{"\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438\u0439"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {"\u041f\u043e\u043a\u0430\u0437\u0443\u0432\u0430\u0442\u0438 \u043f\u0435\u0440\u0448\u0438\u043c \u0443 \u0441\u043e\u0440\u0442\u0443\u0432\u0430\u043d\u043d\u0456 \u00ab\u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0435\u00bb"}
+                </p>
+              </div>
+              <Switch checked={isPopular} onCheckedChange={setIsPopular} />
             </div>
 
             {/* Category + Subcategory side by side */}
