@@ -1,14 +1,26 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, ShoppingCart, Pencil } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export function CartPageClient() {
   const router = useRouter()
   const { items, totalItems, totalPrice, updateQuantity, removeItem, clearCart } = useCart()
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   if (items.length === 0) {
     return (
@@ -107,7 +119,9 @@ export function CartPageClient() {
                     <div className="flex items-center gap-0">
                       <button
                         onClick={() => updateQuantity(item.lineKey, item.quantity - 1)}
-                        className="flex size-10 sm:size-8 items-center justify-center rounded-l-md border border-border text-muted-foreground transition-colors hover:bg-muted"
+                        disabled={item.quantity <= 1}
+                        aria-label={"\u0417\u043c\u0435\u043d\u0448\u0438\u0442\u0438 \u043a\u0456\u043b\u044c\u043a\u0456\u0441\u0442\u044c"}
+                        className="flex size-10 sm:size-8 items-center justify-center rounded-l-md border border-border text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                       >
                         <Minus className="size-3.5" />
                       </button>
@@ -152,7 +166,7 @@ export function CartPageClient() {
 
                     {/* Delete */}
                     <button
-                      onClick={() => removeItem(item.lineKey)}
+                      onClick={() => setPendingDelete(item.lineKey)}
                       className="flex items-center gap-1 text-xs text-destructive/70 transition-colors hover:text-destructive"
                     >
                       <Trash2 className="size-3.5" />
@@ -228,6 +242,32 @@ export function CartPageClient() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438 \u0442\u043e\u0432\u0430\u0440 \u0437 \u043a\u043e\u0448\u0438\u043a\u0430?"}</AlertDialogTitle>
+            <AlertDialogDescription>{"\u0422\u043e\u0432\u0430\u0440 \u0431\u0443\u0434\u0435 \u0432\u0438\u0434\u0430\u043b\u0435\u043d\u043e \u0437 \u043a\u043e\u0448\u0438\u043a\u0430. \u0412\u0438 \u0437\u0430\u0432\u0436\u0434\u0438 \u043c\u043e\u0436\u0435\u0442\u0435 \u0434\u043e\u0434\u0430\u0442\u0438 \u0439\u043e\u0433\u043e \u0437\u043d\u043e\u0432\u0443."}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{"\u0421\u043a\u0430\u0441\u0443\u0432\u0430\u0442\u0438"}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) removeItem(pendingDelete)
+                setPendingDelete(null)
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {"\u0412\u0438\u0434\u0430\u043b\u0438\u0442\u0438"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
