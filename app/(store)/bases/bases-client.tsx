@@ -24,6 +24,12 @@ const BASES_SORT_KEYS: SortKey[] = ["popular", "newest", "price-asc", "price-des
 type Category = { id: number; name: string }
 type Subcategory = { id: number; name: string; base_category_id: number }
 
+type ColorSwatch = {
+  id: number
+  name: string | null
+  hex: string | null
+}
+
 type BaseItem = {
   id: number
   name: string
@@ -33,6 +39,7 @@ type BaseItem = {
   previewUrl: string | null
   base_category_id: number | null
   base_subcategory_id: number | null
+  swatches: ColorSwatch[]
 }
 
 interface BasesPageClientProps {
@@ -278,6 +285,10 @@ export function BasesPageClient({
 }
 
 function BaseCard({ base }: { base: BaseItem }) {
+  const MAX_VISIBLE_SWATCHES = 6
+  const visibleSwatches = base.swatches.slice(0, MAX_VISIBLE_SWATCHES)
+  const extraCount = Math.max(0, base.swatches.length - MAX_VISIBLE_SWATCHES)
+
   return (
     <Link
       href={`/base/${base.id}`}
@@ -302,6 +313,22 @@ function BaseCard({ base }: { base: BaseItem }) {
         <h3 className="text-sm font-medium text-card-foreground line-clamp-2 group-hover:text-primary transition-colors">
           {base.name}
         </h3>
+        {visibleSwatches.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {visibleSwatches.map((s) => (
+              <span
+                key={s.id}
+                title={s.name ?? undefined}
+                aria-label={s.name ?? "\u043a\u043e\u043b\u0456\u0440"}
+                className="size-4 rounded-full border border-border"
+                style={{ backgroundColor: s.hex ?? "transparent" }}
+              />
+            ))}
+            {extraCount > 0 && (
+              <span className="text-xs text-muted-foreground">+{extraCount}</span>
+            )}
+          </div>
+        )}
         {base.price != null && base.price > 0 && (
           <p className="mt-auto pt-2 text-sm font-bold text-foreground">
             {base.price} {"\u0433\u0440\u043d"}

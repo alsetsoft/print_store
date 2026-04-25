@@ -90,13 +90,21 @@ export default async function BasesPage({
 
   // Get first base_image for each base (better quality preview)
   const baseIds = bases.map((b) => b.id)
-  const imagesRes = baseIds.length > 0
-    ? await supabase
-        .from("base_images")
-        .select("id, base_id, url, sort_order")
-        .in("base_id", baseIds)
-        .order("sort_order")
-    : { data: [] }
+  const [imagesRes, colorsRes] = await Promise.all([
+    baseIds.length > 0
+      ? supabase
+          .from("base_images")
+          .select("id, base_id, url, sort_order")
+          .in("base_id", baseIds)
+          .order("sort_order")
+      : Promise.resolve({ data: [] as Array<{ id: number; base_id: number; url: string; sort_order: number }> }),
+    baseIds.length > 0
+      ? supabase
+          .from("base_colors")
+          .select("base_id, color_id, colors(id, name, hex_code)")
+          .in("base_id", baseIds)
+      : Promise.resolve({ data: [] as Array<{ base_id: number; color_id: number; colors: { id: number; name: string | null; hex_code: string | null } | null }> }),
+  ])
 
   const firstImageByBase = new Map<number, string>()
   for (const img of (imagesRes.data ?? []) as Array<{ id: number; base_id: number; url: string }>) {
@@ -105,9 +113,19 @@ export default async function BasesPage({
     }
   }
 
+  const swatchesByBase = new Map<number, Array<{ id: number; name: string | null; hex: string | null }>>()
+  for (const row of (colorsRes.data ?? []) as Array<{ base_id: number; color_id: number; colors: { id: number; name: string | null; hex_code: string | null } | null }>) {
+    const arr = swatchesByBase.get(row.base_id) ?? []
+    if (row.colors && !arr.some((s) => s.id === row.colors!.id)) {
+      arr.push({ id: row.colors.id, name: row.colors.name, hex: row.colors.hex_code })
+    }
+    swatchesByBase.set(row.base_id, arr)
+  }
+
   const enrichedBases = bases.map((b) => ({
     ...b,
     previewUrl: firstImageByBase.get(b.id) ?? b.image_url ?? null,
+    swatches: swatchesByBase.get(b.id) ?? [],
   }))
 
   // Build breadcrumb
