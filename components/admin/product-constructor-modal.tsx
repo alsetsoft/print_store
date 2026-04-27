@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
-  X, ZoomIn, ZoomOut, RotateCcw, FlipHorizontal2,
+  X, ZoomIn, ZoomOut, FlipHorizontal2,
   Maximize2, Minimize2, Loader2, Check, Eye, EyeOff,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -425,12 +425,6 @@ export function ProductConstructorModal({
     applyPlacement(newZoneId)
     setIsPrintSelected(false)
   }, [selectedZoneId, stashCurrentPlacement, applyPlacement])
-
-  const handleReset = () => {
-    setPrintPosition({ x: 50, y: 50 })
-    setPrintScale(50)
-    setPrintFlipped(false)
-  }
 
   // ——— Geometry helpers ———
   const getZonePx = useCallback(() => {
@@ -921,12 +915,6 @@ export function ProductConstructorModal({
 
             {/* Controls */}
             <div className="border-t border-border p-3 shrink-0 sm:shrink">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {"\u0420\u043E\u0437\u043C\u0456\u0440"}
-                </p>
-                <span className="text-xs tabular-nums text-muted-foreground">{Math.round(printScale)}%</span>
-              </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setPrintScale((s) => Math.max(10, s - 10))}
@@ -949,16 +937,6 @@ export function ProductConstructorModal({
                   aria-label="zoom in"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <div className="mt-2">
-
-                <button
-                  onClick={handleReset}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  {"\u0421\u043A\u0438\u043D\u0443\u0442\u0438"}
                 </button>
               </div>
             </div>
