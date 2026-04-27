@@ -53,6 +53,25 @@ type OrderItemRow = {
   preview_data: { dataUrl?: string; baseId?: number } | null
 }
 
+export type AttachmentSource =
+  | { kind: "url"; url: string; filename: string }
+  | { kind: "dataUrl"; dataUrl: string; filename: string }
+
+export interface BuiltMyDropOrder {
+  payload: MyDropPayload
+  attachments: AttachmentSource[]
+}
+
+function filenameFromUrl(url: string): string {
+  try {
+    const path = new URL(url).pathname
+    const base = path.substring(path.lastIndexOf("/") + 1)
+    return decodeURIComponent(base) || "attachment"
+  } catch {
+    return "attachment"
+  }
+}
+
 export interface MyDropPayload {
   source_id: number
   buyer_comment: string
@@ -95,7 +114,7 @@ async function buildFromOrder(
   supabase: SupabaseClient,
   order: OrderRow,
   items: OrderItemRow[],
-): Promise<MyDropPayload> {
+): Promise<BuiltMyDropOrder> {
   // Resolve bases.sku per item. Custom items carry their underlying baseId
   // inside preview_data (set by checkout actions); product items resolve
   // through products.base_id; base items use item_id directly.
@@ -105,13 +124,31 @@ async function buildFromOrder(
     .filter((n) => !isNaN(n))
 
   const productToBase = new Map<number, number>()
+  const productToPrint = new Map<number, number>()
   if (productIds.length > 0) {
     const { data: prodRows } = await supabase
       .from("products")
-      .select("id, base_id")
+      .select("id, base_id, print_id")
       .in("id", productIds)
-    for (const p of (prodRows ?? []) as Array<{ id: number; base_id: number | null }>) {
+    for (const p of (prodRows ?? []) as Array<{
+      id: number
+      base_id: number | null
+      print_id: number | null
+    }>) {
       if (p.base_id != null) productToBase.set(p.id, p.base_id)
+      if (p.print_id != null) productToPrint.set(p.id, p.print_id)
+    }
+  }
+
+  const printIds = Array.from(new Set(productToPrint.values()))
+  const printImageById = new Map<number, string>()
+  if (printIds.length > 0) {
+    const { data: printRows } = await supabase
+      .from("print_designs")
+      .select("id, image_url")
+      .in("id", printIds)
+    for (const r of (printRows ?? []) as Array<{ id: number; image_url: string | null }>) {
+      if (r.image_url) printImageById.set(r.id, r.image_url)
     }
   }
 
@@ -150,7 +187,47 @@ async function buildFromOrder(
   const paymentDate = formatKyivTimestamp(order.updated_at)
   const regionUaName = await findRegionUaName(order.np_city_name ?? "")
 
-  return {
+  const attachments: AttachmentSource[] = []
+  items.forEach((it, idx) => {
+    if (it.item_type === "product") {
+      const pid = parseInt(it.item_id)
+      if (isNaN(pid)) {
+        console.log(`[mydrop] item ${idx} product: bad item_id "${it.item_id}"`)
+        return
+      }
+      const printId = productToPrint.get(pid)
+      if (printId == null) {
+        console.log(`[mydrop] item ${idx} product ${pid}: no print_id`)
+        return
+      }
+      const url = printImageById.get(printId)
+      if (!url) {
+        console.log(`[mydrop] item ${idx} product ${pid}: print ${printId} has no image_url`)
+        return
+      }
+      console.log(`[mydrop] item ${idx} product ${pid}: attach print ${printId} url=${url}`)
+      attachments.push({ kind: "url", url, filename: filenameFromUrl(url) })
+      return
+    }
+    if (it.item_type === "custom") {
+      const dataUrl = it.preview_data?.dataUrl
+      if (typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
+        console.log(`[mydrop] item ${idx} custom: attach dataUrl (${dataUrl.length} chars)`)
+        attachments.push({
+          kind: "dataUrl",
+          dataUrl,
+          filename: `constructor-${order.id}-${idx}.png`,
+        })
+      } else {
+        console.log(`[mydrop] item ${idx} custom: no preview_data.dataUrl`)
+      }
+    } else {
+      console.log(`[mydrop] item ${idx} ${it.item_type}: skip (no attachment for type)`)
+    }
+  })
+  console.log(`[mydrop] order ${order.id}: ${attachments.length} attachment(s)`)
+
+  const payload: MyDropPayload = {
     source_id: 99,
     buyer_comment: "ТЕСТОВЕ замовлення з Print Website",
     manager_id: 26,
@@ -199,6 +276,8 @@ async function buildFromOrder(
       },
     ],
   }
+
+  return { payload, attachments }
 }
 
 const ORDER_COLUMNS =
@@ -209,7 +288,7 @@ const ITEM_COLUMNS =
 export async function buildMyDropPayloadById(
   supabase: SupabaseClient,
   orderId: string,
-): Promise<MyDropPayload | null> {
+): Promise<BuiltMyDropOrder | null> {
   const { data: order } = await supabase
     .from("orders")
     .select(ORDER_COLUMNS)
@@ -228,7 +307,7 @@ export async function buildMyDropPayloadById(
 export async function buildMyDropPayloadByOrderNumber(
   supabase: SupabaseClient,
   orderNumber: string,
-): Promise<MyDropPayload | null> {
+): Promise<BuiltMyDropOrder | null> {
   const { data: order } = await supabase
     .from("orders")
     .select(ORDER_COLUMNS)

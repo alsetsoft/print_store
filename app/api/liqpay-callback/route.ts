@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyLiqPayCallback } from "@/lib/liqpay"
 import { buildMyDropPayloadById } from "@/lib/mydrop-payload"
+import { submitOrderToKeyCrm } from "@/lib/keycrm"
 import { createServerClient } from "@supabase/ssr"
 
 export async function POST(request: NextRequest) {
@@ -44,9 +45,13 @@ export async function POST(request: NextRequest) {
       .eq("id", orderId)
 
     if (isPaid) {
-      const myDropPayload = await buildMyDropPayloadById(supabase, orderId)
-      if (myDropPayload) {
-        console.log("[MyDrop POST candidate]:", JSON.stringify(myDropPayload, null, 2))
+      const built = await buildMyDropPayloadById(supabase, orderId)
+      if (built) {
+        try {
+          await submitOrderToKeyCrm(built.payload, built.attachments)
+        } catch (err) {
+          console.error("[KeyCRM submit] failed:", err)
+        }
       }
     }
 
