@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UA } from "@/lib/translations"
+import { validateImageFile, imageAcceptString } from "@/lib/file-validation"
 
 type Mode = "simple" | "photo" | "advanced"
 
@@ -288,10 +289,10 @@ export function SizeGuideClient() {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(
-        "\u0424\u0430\u0439\u043b \u0437\u0430\u043d\u0430\u0434\u0442\u043e \u0432\u0435\u043b\u0438\u043a\u0438\u0439. \u041c\u0430\u043a\u0441\u0438\u043c\u0443\u043c 5 \u041c\u0411.",
-      )
+    const error = validateImageFile(file, { allow: ["jpeg", "png", "webp"] })
+    if (error) {
+      toast.error(error)
+      e.target.value = ""
       return
     }
     const reader = new FileReader()
@@ -545,7 +546,7 @@ export function SizeGuideClient() {
                 <input
                   ref={photoFileRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept={imageAcceptString(["jpeg", "png", "webp"])}
                   className="hidden"
                   onChange={handlePhotoUpload}
                 />

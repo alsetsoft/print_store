@@ -8,9 +8,15 @@ import {
   Upload, AlignLeft, AlignCenter, AlignRight,
   Layers, ArrowLeft, Search, Repeat, ShoppingCart, Check, ChevronDown, Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import QRCode from "qrcode"
 import { createClient } from "@/lib/supabase/client"
+import {
+  validateImageFile,
+  validateFontFile,
+  imageAcceptString,
+} from "@/lib/file-validation"
 import {
   Dialog,
   DialogContent,
@@ -648,6 +654,12 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const error = validateImageFile(file)
+    if (error) {
+      toast.error(error)
+      e.target.value = ""
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => {
       addElement({ type: "image", imageUrl: reader.result as string, label: file.name })
@@ -674,6 +686,11 @@ export function ConstructorClient({ base: initialBase, images: initialImages, co
   }, [textInput, textColor, textFont, textAlign, addElement])
 
   const handleFontUpload = useCallback((file: File) => {
+    const error = validateFontFile(file)
+    if (error) {
+      toast.error(error)
+      return
+    }
     const name = file.name.replace(/\.(ttf|woff2?|otf)$/i, "")
     const fontFamily = `custom-${name}`
     const reader = new FileReader()
@@ -2044,7 +2061,7 @@ function ImageTab({ onUpload }: { onUpload: (e: React.ChangeEvent<HTMLInputEleme
           </div>
           <input
             type="file"
-            accept="image/*"
+            accept={imageAcceptString()}
             onChange={onUpload}
             className="hidden"
           />

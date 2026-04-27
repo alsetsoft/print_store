@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from "react"
 import { X, Loader2, ImageIcon, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { createPrint, updatePrint } from "@/app/admin/prints/actions"
 import { createClient } from "@/lib/supabase/client"
 import { uploadImage } from "@/lib/upload"
 import { Switch } from "@/components/ui/switch"
+import { validateImageFile, imageAcceptString } from "@/lib/file-validation"
 
 interface Print {
   id: string
@@ -115,6 +117,12 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const validationError = validateImageFile(file)
+    if (validationError) {
+      toast.error(validationError)
+      e.target.value = ""
+      return
+    }
 
     const localPreview = URL.createObjectURL(file)
     setPreviewUrl(localPreview)
@@ -349,7 +357,7 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={imageAcceptString()}
                 onChange={handleFileChange}
                 className="hidden"
               />

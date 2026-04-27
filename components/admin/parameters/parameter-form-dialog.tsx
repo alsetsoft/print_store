@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from "react"
 import { X, Loader2, ImageIcon, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { createMaterial, updateMaterial } from "@/app/admin/parameters/actions"
 import { uploadImage } from "@/lib/upload"
+import { validateImageFile, imageAcceptString } from "@/lib/file-validation"
 
 interface MaterialFormDialogProps {
   open: boolean
@@ -86,6 +88,12 @@ export function ParameterFormDialog({
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    const validationError = validateImageFile(file)
+    if (validationError) {
+      toast.error(validationError)
+      e.target.value = ""
+      return
+    }
 
     const localPreview = URL.createObjectURL(file)
     setPreviewUrl(localPreview)
@@ -238,7 +246,7 @@ export function ParameterFormDialog({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={imageAcceptString()}
                   onChange={handleFileChange}
                   className="hidden"
                 />

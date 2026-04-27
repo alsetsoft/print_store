@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { X, Loader2, ImageIcon, Trash2, Upload, Grid3X3, Star, Link2, ChevronLeft, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
 import { createBase, updateBase, decodeLabel } from "@/app/admin/parameters/actions"
 import { createClient } from "@/lib/supabase/client"
 import { ZoneEditorModal, Zone } from "./zone-editor-modal"
 import { Switch } from "@/components/ui/switch"
+import { validateImageFile, imageAcceptString } from "@/lib/file-validation"
 
 interface BaseFormDialogProps {
   open: boolean
@@ -237,10 +239,21 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
     if (!files.length) return
     if (fileInputRef.current) fileInputRef.current.value = ""
 
+    const validFiles: File[] = []
+    for (const file of files) {
+      const validationError = validateImageFile(file)
+      if (validationError) {
+        toast.error(`${file.name}: ${validationError}`)
+        continue
+      }
+      validFiles.push(file)
+    }
+    if (!validFiles.length) return
+
     // Use index to guarantee unique IDs even if files are selected simultaneously
     const timestamp = Date.now()
     const currentCount = imagesByColor[colorId]?.length || 0
-    const placeholders: UploadedImage[] = files.map((file, index) => ({
+    const placeholders: UploadedImage[] = validFiles.map((file, index) => ({
       id: `tmp-${timestamp}-${index}-${Math.random().toString(36).substring(2)}`,
       url: "",
       uploading: true,
@@ -767,7 +780,7 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept={imageAcceptString()}
                       multiple
                       onChange={(e) => handleFilesChange(e, activeColorTab)}
                       className="hidden"
