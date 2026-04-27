@@ -344,7 +344,7 @@ export function CompositeCard({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onTogglePreviewable() }}
-            aria-label={isPreviewable ? "Зняти позначку превʼю" : "Зробити превʼю каталогу"}
+            aria-label={isPreviewable ? "Не показувати в каталозі" : "Показувати в каталозі"}
             className={cn(
               "mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
               isPreviewable
@@ -353,7 +353,7 @@ export function CompositeCard({
             )}
           >
             {isPreviewable ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-            <span>{isPreviewable ? "Превʼю каталогу" : "Зробити превʼю"}</span>
+            <span>{isPreviewable ? "Показувати в каталозі" : "Показати в каталозі"}</span>
           </button>
         )}
       </div>
