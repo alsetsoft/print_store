@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { useCart } from "@/lib/cart-context"
 import { useAuth } from "@/lib/auth-context"
 import { generateCompositePreview } from "@/lib/composite-preview"
+import { uploadDataUrl } from "@/lib/upload"
 import { CartItemPreview } from "@/components/store/cart-item-preview"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -190,16 +191,27 @@ export function CheckoutClient() {
               // Fall back to base image on failure.
             }
           }
+          // Upload the composed preview to Supabase so the order line stores
+          // a stable URL of base+print as the customer designed it (used as
+          // products[].picture in the MyDrop payload). Falls back to the base
+          // image URL when no preview exists or upload fails.
+          let imageUrl = item.imageUrl
+          if (previewDataUrl) {
+            const uploaded = await uploadDataUrl(previewDataUrl, "order-previews")
+            if (uploaded) imageUrl = uploaded
+          }
+
           return {
             id: item.id,
             type: item.type,
             name: item.name,
             price: item.price,
-            imageUrl: item.imageUrl,
+            imageUrl,
             quantity: item.quantity,
             colorName: item.colorName,
             sizeName: item.sizeName,
             previewDataUrl,
+            constructorBaseId: item.constructorState?.baseId,
           }
         }),
       )
@@ -212,7 +224,7 @@ export function CheckoutClient() {
           comment: values.comment || undefined,
           npCityRef: String(selectedCity.id),
           npCityName: selectedCity.name,
-          npWarehouseRef: String(selectedWarehouse.id),
+          npWarehouseRef: selectedWarehouse.externalId || String(selectedWarehouse.id),
           npWarehouseName: selectedWarehouse.name,
         },
         itemsForOrder,

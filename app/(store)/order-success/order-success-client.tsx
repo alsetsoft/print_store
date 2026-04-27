@@ -1,12 +1,26 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { CheckCircle2, ShoppingBag } from "lucide-react"
+import { getMyDropPayload } from "./actions"
 
 export function OrderSuccessClient() {
   const searchParams = useSearchParams()
   const orderNumber = searchParams.get("order")
+  const loggedRef = useRef(false)
+
+  useEffect(() => {
+    if (!orderNumber || loggedRef.current) return
+    loggedRef.current = true
+    getMyDropPayload(orderNumber)
+      .then((payload) => {
+        if (payload) console.log("[MyDrop POST candidate]:", payload)
+        else console.warn("[MyDrop POST candidate]: order not found", orderNumber)
+      })
+      .catch((err) => console.error("[MyDrop POST candidate] error:", err))
+  }, [orderNumber])
 
   return (
     <div className="flex flex-col items-center text-center">

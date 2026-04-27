@@ -61,7 +61,11 @@ export default async function OrdersPage({
         <>
           <div className="space-y-3">
             {orders.map((order) => (
-              <div key={order.id} className="rounded-lg border bg-card p-4">
+              <Link
+                key={order.id}
+                href={`/account/orders/${order.id}`}
+                className="block rounded-lg border bg-card p-4 transition-colors hover:border-primary hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="font-medium">{order.order_number}</span>
@@ -84,7 +88,7 @@ export default async function OrdersPage({
                     {order.np_warehouse_name && `, ${order.np_warehouse_name}`}
                   </p>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
 

@@ -19,6 +19,9 @@ export interface NPCity {
 
 export interface NPWarehouse {
   id: number
+  // Legacy classic-API UUID (e.g. "511fcfde-e1c2-11e3-8c4a-0050568002cf").
+  // Some downstream integrations (MyDrop CRM) require this format.
+  externalId: string
   name: string
   shortName: string
   address: string
@@ -156,6 +159,7 @@ export async function searchCities(query: string): Promise<NPCity[]> {
 interface DivisionsResponse {
   items: Array<{
     id: number
+    externalId: string | null
     shortName: string
     address: string
     name: string
@@ -163,6 +167,23 @@ interface DivisionsResponse {
   current_page: number
   last_page: number
   total: number
+}
+
+const REGION_UA_BY_EN = new Map<string, string>(UA_REGIONS.map((r) => [r.nameEn, r.name]))
+
+// Resolves the Ukrainian oblast name (e.g. "Харківська") for a given Ukrainian
+// city name. Falls back to the API's English region name when the mapping
+// has no entry, and to "" on any error.
+export async function findRegionUaName(cityName: string): Promise<string> {
+  if (!cityName) return ""
+  try {
+    const cities = await searchCities(cityName)
+    if (cities.length === 0) return ""
+    const englishRegion = cities[0].regionName
+    return REGION_UA_BY_EN.get(englishRegion) ?? englishRegion ?? ""
+  } catch {
+    return ""
+  }
 }
 
 export async function getWarehouses(settlementId: number): Promise<NPWarehouse[]> {
@@ -183,6 +204,7 @@ export async function getWarehouses(settlementId: number): Promise<NPWarehouse[]
     for (const d of data.items ?? []) {
       allWarehouses.push({
         id: d.id,
+        externalId: d.externalId ?? "",
         name: d.shortName ? `${d.shortName}, ${d.address}` : d.name,
         shortName: d.shortName ?? d.name,
         address: d.address ?? "",

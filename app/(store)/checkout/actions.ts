@@ -38,6 +38,7 @@ interface CartItemForOrder {
   colorName?: string
   sizeName?: string
   previewDataUrl?: string
+  constructorBaseId?: string
 }
 
 export async function createOrder(formData: OrderFormData, cartItems: CartItemForOrder[]) {
@@ -86,19 +87,32 @@ export async function createOrder(formData: OrderFormData, cartItems: CartItemFo
 
   if (error || !order) throw new Error("Failed to create order")
 
-  // Insert order items
-  const items = cartItems.map((item) => ({
-    order_id: order.id,
-    item_type: item.type,
-    item_id: item.id,
-    name: item.name,
-    price: item.price ?? 0,
-    quantity: item.quantity,
-    image_url: item.imageUrl,
-    color_name: item.colorName || null,
-    size_name: item.sizeName || null,
-    preview_data: item.previewDataUrl ? { dataUrl: item.previewDataUrl } : null,
-  }))
+  // Insert order items. Stash constructorBaseId in preview_data for custom
+  // items so the paid-order callback can resolve bases.sku without a join
+  // through any client-only state.
+  const items = cartItems.map((item) => {
+    const constructorBaseIdInt = item.constructorBaseId ? parseInt(item.constructorBaseId) : NaN
+    const previewData =
+      item.previewDataUrl || Number.isFinite(constructorBaseIdInt)
+        ? {
+            ...(item.previewDataUrl ? { dataUrl: item.previewDataUrl } : {}),
+            ...(Number.isFinite(constructorBaseIdInt) ? { baseId: constructorBaseIdInt } : {}),
+          }
+        : null
+
+    return {
+      order_id: order.id,
+      item_type: item.type,
+      item_id: item.id,
+      name: item.name,
+      price: item.price ?? 0,
+      quantity: item.quantity,
+      image_url: item.imageUrl,
+      color_name: item.colorName || null,
+      size_name: item.sizeName || null,
+      preview_data: previewData,
+    }
+  })
 
   const { error: itemsError } = await supabase.from("new_order_items").insert(items)
   if (itemsError) throw new Error("Failed to save order items")

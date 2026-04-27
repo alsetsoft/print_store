@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyLiqPayCallback } from "@/lib/liqpay"
+import { buildMyDropPayloadById } from "@/lib/mydrop-payload"
 import { createServerClient } from "@supabase/ssr"
 
 export async function POST(request: NextRequest) {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => [], setAll: () => {} } }
+      { cookies: { getAll: () => [], setAll: () => {} } },
     )
 
     await supabase
@@ -43,63 +44,10 @@ export async function POST(request: NextRequest) {
       .eq("id", orderId)
 
     if (isPaid) {
-      const { data: order } = await supabase
-        .from("orders")
-        .select(
-          "id, order_number, status, customer_name, customer_phone, customer_email, comment, np_city_ref, np_city_name, np_warehouse_ref, np_warehouse_name, total_amount, liqpay_order_id, liqpay_status, liqpay_payment_id, created_at, updated_at, user_id"
-        )
-        .eq("id", orderId)
-        .single()
-
-      const { data: items } = await supabase
-        .from("new_order_items")
-        .select("item_type, item_id, name, price, quantity, image_url, color_name, size_name")
-        .eq("order_id", orderId)
-
-      const crmPayload = {
-        order: {
-          id: order?.id,
-          number: order?.order_number,
-          status: order?.status,
-          total_amount: order?.total_amount,
-          currency: "UAH",
-          comment: order?.comment,
-          created_at: order?.created_at,
-          paid_at: order?.updated_at,
-        },
-        customer: {
-          user_id: order?.user_id,
-          name: order?.customer_name,
-          phone: order?.customer_phone,
-          email: order?.customer_email,
-        },
-        delivery: {
-          provider: "nova_poshta",
-          city_ref: order?.np_city_ref,
-          city_name: order?.np_city_name,
-          warehouse_ref: order?.np_warehouse_ref,
-          warehouse_name: order?.np_warehouse_name,
-        },
-        payment: {
-          provider: "liqpay",
-          liqpay_order_id: order?.liqpay_order_id,
-          liqpay_payment_id: order?.liqpay_payment_id,
-          liqpay_status: order?.liqpay_status,
-        },
-        items: (items ?? []).map((it) => ({
-          type: it.item_type,
-          id: it.item_id,
-          name: it.name,
-          price: it.price,
-          quantity: it.quantity,
-          subtotal: Number(it.price) * it.quantity,
-          image_url: it.image_url,
-          color: it.color_name,
-          size: it.size_name,
-        })),
+      const myDropPayload = await buildMyDropPayloadById(supabase, orderId)
+      if (myDropPayload) {
+        console.log("[MyDrop POST candidate]:", JSON.stringify(myDropPayload, null, 2))
       }
-
-      console.log("[CRM payload] POST candidate:", JSON.stringify(crmPayload, null, 2))
     }
 
     return NextResponse.json({ ok: true })
