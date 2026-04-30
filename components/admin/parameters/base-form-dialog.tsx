@@ -719,11 +719,22 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
             </div>
 
             {/* Images per color */}
-            {selectedColorIds.length > 0 && (
-              <div>
-                <label className="mb-1 block text-sm font-medium text-foreground" suppressHydrationWarning>
-                  {"Зображення"} <span className="text-destructive">*</span>
-                </label>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground" suppressHydrationWarning>
+                {"Зображення"} <span className="text-destructive">*</span>
+              </label>
+              {selectedColorIds.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-input bg-muted/30 px-4 py-8 text-center">
+                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground" suppressHydrationWarning>
+                    {"Спочатку оберіть колір"}
+                  </p>
+                  <p className="max-w-xs text-xs text-muted-foreground" suppressHydrationWarning>
+                    {"Зображення додаються окремо для кожного кольору основи"}
+                  </p>
+                </div>
+              ) : (
+                <>
                 <p className="mb-2 text-xs text-muted-foreground">
                   {"Додайте фото для кожного кольору: спереду, ззаду, збоку тощо"}
                 </p>
@@ -936,8 +947,9 @@ export function BaseFormDialog({ open, onOpenChange, item, categories, subcatego
                 })()}
                 {errors.zones && <p className="mt-1 text-xs text-destructive">{errors.zones}</p>}
                 {errors.images && <p className="mt-1 text-xs text-destructive" suppressHydrationWarning>{errors.images}</p>}
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
           </form>
         </div>

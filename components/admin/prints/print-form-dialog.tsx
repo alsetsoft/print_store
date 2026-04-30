@@ -32,24 +32,16 @@ interface Category {
   name: string
 }
 
-interface Color {
-  id: string
-  name: string
-  hex_code: string
-}
-
 export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintFormDialogProps) {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [price, setPrice] = useState("")
   const [categoryId, setCategoryId] = useState("")
   const [subcategoryId, setSubcategoryId] = useState("")
-  const [colorId, setColorId] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isPopular, setIsPopular] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
   const [subcategories, setSubcategories] = useState<Category[]>([])
-  const [colors, setColors] = useState<Color[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -63,7 +55,6 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       setPrice(print.price != null ? String(print.price) : "")
       setCategoryId(print.print_categories?.id || "")
       setSubcategoryId(print.print_subcategories?.id || "")
-      setColorId("")
       setImageUrl(print.image_url || "")
       setPreviewUrl(print.image_url || null)
       setIsPopular(Boolean(print.is_popular))
@@ -73,24 +64,22 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       setPrice("")
       setCategoryId("")
       setSubcategoryId("")
-      setColorId("")
       setImageUrl("")
       setPreviewUrl(null)
       setIsPopular(false)
     }
   }, [print, open])
 
-  // Fetch categories and colors when dialog opens
+  // Fetch categories when dialog opens
   useEffect(() => {
     if (!open) return
     async function fetchOptions() {
       const supabase = createClient()
-      const [{ data: cats }, { data: cols }] = await Promise.all([
-        supabase.from("print_categories").select("id, name").order("name"),
-        supabase.from("colors").select("id, name, hex_code").order("name"),
-      ])
+      const { data: cats } = await supabase
+        .from("print_categories")
+        .select("id, name")
+        .order("name")
       setCategories(cats || [])
-      setColors(cols || [])
     }
     fetchOptions()
   }, [open])
@@ -161,7 +150,6 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
       formData.append("price", price)
       formData.append("category_id", categoryId)
       formData.append("subcategory_id", subcategoryId)
-      formData.append("color_id", colorId)
       formData.append("image_url", imageUrl)
       formData.append("is_popular", isPopular ? "1" : "")
 
@@ -303,50 +291,6 @@ export function PrintFormDialog({ open, onOpenChange, print, onSuccess }: PrintF
                   ))}
                 </select>
               </div>
-            </div>
-
-            {/* Color (optional) */}
-            <div>
-              <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-foreground">
-                {"Колір"}
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                  {"необов'язково"}
-                </span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {/* No color option */}
-                <button
-                  type="button"
-                  onClick={() => setColorId("")}
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs transition-all ${
-                    colorId === ""
-                      ? "border-primary scale-110 shadow-md"
-                      : "border-border hover:border-muted-foreground"
-                  } bg-muted`}
-                  title={"Без кольору"}
-                >
-                  <X className="h-3 w-3 text-muted-foreground" />
-                </button>
-                {colors.map((color) => (
-                  <button
-                    key={color.id}
-                    type="button"
-                    onClick={() => setColorId(color.id)}
-                    className={`h-8 w-8 rounded-full border-2 transition-all hover:scale-110 ${
-                      colorId === color.id
-                        ? "border-primary scale-110 shadow-md ring-2 ring-primary ring-offset-2"
-                        : "border-border"
-                    }`}
-                    style={{ backgroundColor: color.hex_code }}
-                    title={color.name}
-                  />
-                ))}
-              </div>
-              {colorId && (
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {colors.find((c) => c.id === colorId)?.name}
-                </p>
-              )}
             </div>
 
             {/* Photo */}

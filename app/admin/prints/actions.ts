@@ -8,7 +8,6 @@ export async function createPrint(formData: FormData) {
   const priceRaw = formData.get("price") as string
   const categoryId = formData.get("category_id") as string
   const subcategoryId = formData.get("subcategory_id") as string
-  const colorId = formData.get("color_id") as string
   const imageUrl = formData.get("image_url") as string
   const isPopular = Boolean(formData.get("is_popular"))
 
