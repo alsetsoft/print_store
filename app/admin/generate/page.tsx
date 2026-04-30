@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import {
   Wand2, Search, CheckSquare, Loader2, Layers, Package, Plus, Check, X, ChevronDown
 } from "lucide-react"
@@ -736,8 +737,35 @@ export default function GeneratePage() {
     setSaving(true)
     setSavedCount(null)
     try {
-      // Generate AI names and descriptions for all combinations
-      const aiInputs: ProductInput[] = activeCombinations.map(({ base, print }) => ({
+      const supabase = createClient()
+
+      // Skip combos that already exist as previewable to avoid violating the
+      // partial unique index on products(base_id, print_id) WHERE is_previewable.
+      const baseIds = Array.from(new Set(activeCombinations.map((c) => parseInt(c.base.id))))
+      const printIds = Array.from(new Set(activeCombinations.map((c) => parseInt(c.print.id))))
+      const { data: existing, error: existingErr } = await supabase
+        .from("products")
+        .select("base_id, print_id")
+        .in("base_id", baseIds)
+        .in("print_id", printIds)
+        .eq("is_previewable", true)
+      if (existingErr) throw existingErr
+      const existingKeys = new Set(
+        (existing || []).map((r) => `${r.base_id}-${r.print_id}`)
+      )
+      const combosToCreate = activeCombinations.filter(
+        (c) => !existingKeys.has(`${c.base.id}-${c.print.id}`)
+      )
+      const skippedCount = activeCombinations.length - combosToCreate.length
+
+      if (combosToCreate.length === 0) {
+        toast.info(`Усі ${skippedCount} комбінації вже існують`)
+        setSavedCount(0)
+        return
+      }
+
+      // Generate AI names and descriptions only for new combinations
+      const aiInputs: ProductInput[] = combosToCreate.map(({ base, print }) => ({
         baseName: base.name,
         baseDescription: base.description,
         printName: print.name,
@@ -745,11 +773,10 @@ export default function GeneratePage() {
       }))
       const generatedTexts = await generateProductTexts(aiInputs)
 
-      const supabase = createClient()
       let savedTotal = 0
 
-      for (let comboIdx = 0; comboIdx < activeCombinations.length; comboIdx++) {
-        const { base, print, previewColorId } = activeCombinations[comboIdx]
+      for (let comboIdx = 0; comboIdx < combosToCreate.length; comboIdx++) {
+        const { base, print, previewColorId } = combosToCreate[comboIdx]
         // Entries from the modal already correspond to previewColorId's images.
         const entries = zoneSelections[base.id] || []
 
@@ -818,13 +845,26 @@ export default function GeneratePage() {
       }
 
       setSavedCount(savedTotal)
+      if (skippedCount > 0) {
+        toast.info(
+          `Додано ${savedTotal}, пропущено ${skippedCount} (вже існують)`
+        )
+      }
       setSelectedBaseIds(new Set())
       setSelectedPrintIds(new Set())
       setRejectedKeys(new Set())
       setZoneSelections({})
       setPreviewColorSelections({})
     } catch (err) {
-      console.error("[v0] Failed to save products:", err)
+      const supaErr = err as { message?: string; code?: string; details?: string; hint?: string }
+      console.error("[v0] Failed to save products:", {
+        message: supaErr?.message,
+        code: supaErr?.code,
+        details: supaErr?.details,
+        hint: supaErr?.hint,
+        raw: err,
+      })
+      toast.error(supaErr?.message || "Не вдалося зберегти товари")
     } finally {
       setSaving(false)
     }
